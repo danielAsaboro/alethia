@@ -18,6 +18,7 @@
 /out/
 /.local/
 /.hydradb/
+/.worktrees/
 
 # production
 /build
