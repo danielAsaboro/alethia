@@ -5,6 +5,8 @@ import type {
   CoverageAssessment,
   EvidenceConflict,
 } from "@/domain/ontology";
+import type { ClaimObservation } from "@/domain/evidence";
+import { consolidateClaims } from "@/claims/consolidate-claims";
 import { buildDossier } from "./build-dossier";
 
 const claim = (id: string, value: string): Claim => ({
@@ -32,6 +34,47 @@ const incomplete: CoverageAssessment = {
 };
 
 describe("buildDossier", () => {
+  it("renders one answer value with two observations", () => {
+    const observation = (
+      method: "deterministic" | "qvac",
+      evidenceQuote: string,
+    ): ClaimObservation => ({
+      id: `observation_${method}`,
+      claimCandidate: {
+        ...claim(`candidate_${method}`, "Software Engineer"),
+        subjectEntityId: "entity_charlie",
+        sourceObjectId: "source_herb_charlie",
+        extractionMethod: method,
+        extractorVersion: `${method}:test`,
+      },
+      evidenceQuote,
+      method,
+      extractorVersion: `${method}:test`,
+    });
+    const consolidated = consolidateClaims([
+      observation("deterministic", "role field"),
+      observation("qvac", "works as Software Engineer"),
+    ]);
+
+    const dossier = buildDossier({
+      question: "What is Charlie Davis's role?",
+      claims: consolidated.claims,
+      observations: consolidated.observations,
+      conflicts: [],
+      coverage: complete,
+      identity: { status: "resolved", entityId: "entity_charlie" },
+      sourceLabels: { source_herb_charlie: "HERB · eid_01942cf0" },
+    });
+
+    expect(dossier.answerGroups).toEqual([
+      expect.objectContaining({
+        valueLabel: "Software Engineer",
+        claimCount: 1,
+        observationCount: 2,
+      }),
+    ]);
+  });
+
   it("retains complete evidence for a supported answer", () => {
     const evidence = claim("claim_engineer", "Software Engineer");
     expect(

@@ -17,6 +17,14 @@ interface Dossier {
   verdict: "SUPPORTED" | "DISPUTED" | "NOT_FOUND" | "UNKNOWN";
   reason: string;
   answerClaims: DossierClaim[];
+  answerGroups: Array<{
+    valueLabel: string;
+    claimIds: string[];
+    observationIds: string[];
+    sourceObjectIds: string[];
+    claimCount: number;
+    observationCount: number;
+  }>;
   evidence: Array<{ claim: DossierClaim; sourceLabel: string }>;
   coverage: {
     sufficient: boolean;
@@ -251,8 +259,10 @@ export default function Home() {
               <div className="answer-block">
                 <p className="eyebrow">Answer</p>
                 <h3>
-                  {dossier.answerClaims.length
-                    ? dossier.answerClaims.map(claimValue).join(" · ")
+                  {dossier.answerGroups.length
+                    ? dossier.answerGroups
+                        .map((group) => group.valueLabel)
+                        .join(" · ")
                     : dossier.reason.replaceAll("_", " ")}
                 </h3>
               </div>
