@@ -1,4 +1,5 @@
 import type { ContentScope, CoverageSlice } from "@/domain/ontology";
+import type { ResolutionBundle } from "@/resolution/resolve-entities";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
@@ -54,6 +55,7 @@ export interface IngestionBundle {
   records: NormalizedSourceObject[];
   rejected: RejectedRecord[];
   coverage: CoverageSlice[];
+  resolution: ResolutionBundle;
   summary: {
     records: number;
     rejected: number;

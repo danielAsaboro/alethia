@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { stableId } from "@/domain/ids";
+import { resolveEntities } from "@/resolution/resolve-entities";
 import type {
   IngestionBundle,
   RejectedRecord,
@@ -67,6 +68,7 @@ export async function runIngestion(
     records,
     rejected,
     coverage,
+    resolution: resolveEntities(records),
     summary: {
       records: records.length,
       rejected: rejected.length,

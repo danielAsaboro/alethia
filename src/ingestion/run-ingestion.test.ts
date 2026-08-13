@@ -40,6 +40,30 @@ describe("runIngestion", () => {
     });
   });
 
+  it("resolves the real HERB employee and team views with auditable decisions", async () => {
+    const result = await runIngestion(
+      new HerbAdapter(),
+      path.resolve(process.cwd(), "../resources/HERB"),
+    );
+
+    expect(result.resolution.entities).toHaveLength(680);
+    expect(
+      result.resolution.decisions.filter((decision) => decision.status === "accepted"),
+    ).toHaveLength(18);
+    expect(result.resolution.decisions).toContainEqual(
+      expect.objectContaining({
+        status: "accepted",
+        signals: [
+          expect.objectContaining({
+            kind: "external_id_exact",
+            normalizedValue: "eid_9b023657",
+          }),
+        ],
+        constraints: ["same_identity_namespace"],
+      }),
+    );
+  });
+
   it("records invalid JSON as failed coverage instead of success", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-herb-"));
     temporaryDirectories.push(directory);
