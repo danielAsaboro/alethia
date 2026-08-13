@@ -1,4 +1,5 @@
 import { hydraIntId } from "./hydra-id";
+import type { CoverageSlice } from "@/domain/ontology";
 
 const labels = [
   "Entity",
@@ -61,6 +62,17 @@ export interface HydraConfig {
   graphId: string;
   namespace: string;
   cellId: string;
+}
+
+export interface GraphClaimEvidence {
+  claimLogicalId: string;
+  predicate: string;
+  object:
+    | { kind: "literal"; value: string | number | boolean }
+    | { kind: "entity"; entityId: string };
+  sourceLogicalId: string;
+  sourceSystem: string;
+  sourceNativeId: string;
 }
 
 interface HydraValue {
@@ -211,5 +223,84 @@ export class HydraRepository {
     return rows[0]
       ? [String(rows[0].entity), String(rows[0].claim), String(rows[0].source)]
       : [];
+  }
+
+  async entityExists(entityLogicalId: string): Promise<boolean> {
+    const rows = await this.query(
+      "MATCH (e:Entity {id: $entityId}) RETURN e.logical_id AS entity LIMIT 1",
+      { entityId: hydraIntId(entityLogicalId) },
+    );
+    return rows[0]?.entity === entityLogicalId;
+  }
+
+  async findClaimEvidence(
+    entityLogicalId: string,
+    predicate: string,
+  ): Promise<GraphClaimEvidence[]> {
+    const rows = await this.query(
+      "MATCH (e:Entity {id: $entityId})-[:ASSERTS]->(c:Claim)-[:SUPPORTED_BY]->(s:SourceObject) RETURN c.logical_id AS claim, c.payload_json AS claimPayload, s.logical_id AS source, s.payload_json AS sourcePayload",
+      { entityId: hydraIntId(entityLogicalId) },
+    );
+
+    return rows.flatMap((row) => {
+      const claimPayload = JSON.parse(String(row.claimPayload)) as Record<
+        string,
+        unknown
+      >;
+      if (claimPayload.predicate !== predicate) return [];
+      const sourcePayload = JSON.parse(String(row.sourcePayload)) as Record<
+        string,
+        unknown
+      >;
+      const object =
+        typeof claimPayload.objectJson === "string"
+          ? (JSON.parse(claimPayload.objectJson) as GraphClaimEvidence["object"])
+          : ({
+              kind: "literal",
+              value: claimPayload.value as string | number | boolean,
+            } as const);
+      return [
+        {
+          claimLogicalId: String(row.claim),
+          predicate,
+          object,
+          sourceLogicalId: String(row.source),
+          sourceSystem: String(sourcePayload.sourceSystem ?? "unknown"),
+          sourceNativeId: String(sourcePayload.nativeId ?? "unknown"),
+        },
+      ];
+    });
+  }
+
+  async findCoverageSlices(
+    sourceSystem: string,
+    objectType: string,
+  ): Promise<CoverageSlice[]> {
+    const rows = await this.query(
+      "MATCH (r:IngestionRun)-[:COVERS]->(c:CoverageSlice) RETURN r.logical_id AS run, c.logical_id AS coverage, c.payload_json AS payload",
+    );
+    return rows.flatMap((row) => {
+      const payload = JSON.parse(String(row.payload)) as Record<string, unknown>;
+      const predicateFamilies = JSON.parse(
+        String(payload.predicateFamiliesJson ?? "[]"),
+      ) as string[];
+      if (
+        payload.sourceSystem !== sourceSystem ||
+        payload.objectType !== objectType
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: String(row.coverage),
+          ingestionRunId: String(row.run),
+          sourceSystem,
+          objectType,
+          predicateFamilies,
+          contentScope: String(payload.contentScope) as CoverageSlice["contentScope"],
+          status: String(payload.status) as CoverageSlice["status"],
+        },
+      ];
+    });
   }
 }

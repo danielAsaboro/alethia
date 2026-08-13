@@ -26,6 +26,22 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         label: "SourceObject",
         properties: { sourceSystem: "integration", nativeId: "real-1" },
       },
+      {
+        logicalId: "run_integration_evidence",
+        label: "IngestionRun",
+        properties: { sourceSystem: "integration" },
+      },
+      {
+        logicalId: "coverage_integration_evidence",
+        label: "CoverageSlice",
+        properties: {
+          sourceSystem: "integration",
+          objectType: "record",
+          status: "complete",
+          contentScope: "metadata",
+          predicateFamiliesJson: JSON.stringify(["has_status"]),
+        },
+      },
     ],
     edges: [
       {
@@ -35,6 +51,15 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         sourceLogicalId: "entity_integration_evidence",
         targetLabel: "Claim",
         targetLogicalId: "claim_integration_evidence",
+        properties: {},
+      },
+      {
+        logicalId: "edge_integration_covers",
+        type: "COVERS",
+        sourceLabel: "IngestionRun",
+        sourceLogicalId: "run_integration_evidence",
+        targetLabel: "CoverageSlice",
+        targetLogicalId: "coverage_integration_evidence",
         properties: {},
       },
       {
@@ -69,13 +94,50 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
     await repository.writeGraph(bundle);
 
     const presence = await repository.getPresence(bundle);
-    expect(presence).toEqual({ nodes: 3, edges: 2 });
+    expect(presence).toEqual({ nodes: 5, edges: 3 });
     expect(
       await repository.findEvidencePath("entity_integration_evidence"),
     ).toEqual([
       "entity_integration_evidence",
       "claim_integration_evidence",
       "source_integration_evidence",
+    ]);
+    expect(await repository.entityExists("entity_integration_evidence")).toBe(
+      true,
+    );
+    expect(await repository.entityExists("entity_integration_missing")).toBe(
+      false,
+    );
+    expect(
+      await repository.findClaimEvidence(
+        "entity_integration_evidence",
+        "has_status",
+      ),
+    ).toEqual([
+      {
+        claimLogicalId: "claim_integration_evidence",
+        predicate: "has_status",
+        object: { kind: "literal", value: "verified" },
+        sourceLogicalId: "source_integration_evidence",
+        sourceSystem: "integration",
+        sourceNativeId: "real-1",
+      },
+    ]);
+    expect(
+      await repository.findCoverageSlices(
+        "integration",
+        "record",
+      ),
+    ).toEqual([
+      {
+        id: "coverage_integration_evidence",
+        ingestionRunId: "run_integration_evidence",
+        sourceSystem: "integration",
+        objectType: "record",
+        predicateFamilies: ["has_status"],
+        contentScope: "metadata",
+        status: "complete",
+      },
     ]);
   });
 });
