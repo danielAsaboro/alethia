@@ -42,6 +42,24 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
           predicateFamiliesJson: JSON.stringify(["has_status"]),
         },
       },
+      {
+        logicalId: "entity_integration_member",
+        label: "Entity",
+        properties: { kind: "person" },
+      },
+      {
+        logicalId: "claim_integration_member_name",
+        label: "Claim",
+        properties: {
+          predicate: "display_name",
+          objectJson: JSON.stringify({ kind: "literal", value: "Member One" }),
+        },
+      },
+      {
+        logicalId: "source_integration_member",
+        label: "SourceObject",
+        properties: { sourceSystem: "integration", nativeId: "member-1" },
+      },
     ],
     edges: [
       {
@@ -71,6 +89,33 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         targetLogicalId: "source_integration_evidence",
         properties: {},
       },
+      {
+        logicalId: "edge_integration_team_member",
+        type: "HAS_TEAM_MEMBER",
+        sourceLabel: "Entity",
+        sourceLogicalId: "entity_integration_evidence",
+        targetLabel: "Entity",
+        targetLogicalId: "entity_integration_member",
+        properties: { claimId: "claim_integration_team" },
+      },
+      {
+        logicalId: "edge_integration_member_asserts",
+        type: "ASSERTS",
+        sourceLabel: "Entity",
+        sourceLogicalId: "entity_integration_member",
+        targetLabel: "Claim",
+        targetLogicalId: "claim_integration_member_name",
+        properties: {},
+      },
+      {
+        logicalId: "edge_integration_member_supported",
+        type: "SUPPORTED_BY",
+        sourceLabel: "Claim",
+        sourceLogicalId: "claim_integration_member_name",
+        targetLabel: "SourceObject",
+        targetLogicalId: "source_integration_member",
+        properties: {},
+      },
     ],
   };
 
@@ -94,7 +139,7 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
     await repository.writeGraph(bundle);
 
     const presence = await repository.getPresence(bundle);
-    expect(presence).toEqual({ nodes: 5, edges: 3 });
+    expect(presence).toEqual({ nodes: 8, edges: 6 });
     expect(
       await repository.findEvidencePath("entity_integration_evidence"),
     ).toEqual([
@@ -137,6 +182,19 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         predicateFamilies: ["has_status"],
         contentScope: "metadata",
         status: "complete",
+      },
+    ]);
+    expect(
+      await repository.findTeamMemberEvidence("entity_integration_evidence"),
+    ).toEqual([
+      {
+        entityLogicalId: "entity_integration_member",
+        displayName: "Member One",
+        relationshipClaimId: "claim_integration_team",
+        nameClaimId: "claim_integration_member_name",
+        sourceLogicalId: "source_integration_member",
+        sourceSystem: "integration",
+        sourceNativeId: "member-1",
       },
     ]);
   });

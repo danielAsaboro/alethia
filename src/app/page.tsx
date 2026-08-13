@@ -29,6 +29,20 @@ interface Dossier {
   };
 }
 
+interface TeamTraversal {
+  startEntityLogicalId: string;
+  traversal: string;
+  memberCount: number;
+  members: Array<{
+    entityLogicalId: string;
+    displayName: string;
+    relationshipClaimId: string;
+    nameClaimId: string;
+    sourceSystem: string;
+    sourceNativeId: string;
+  }>;
+}
+
 const verdicts = [
   ["SUPPORTED", "Evidence agrees or policy resolves the conflict."],
   ["DISPUTED", "Credible claims remain incompatible."],
@@ -52,6 +66,9 @@ export default function Home() {
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
+  const [teamTraversal, setTeamTraversal] = useState<TeamTraversal | null>(null);
+  const [teamStatus, setTeamStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [teamError, setTeamError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,6 +98,25 @@ export default function Home() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
       setStatus("error");
+    }
+  }
+
+  async function traceTeam() {
+    setTeamStatus("loading");
+    setTeamError("");
+    try {
+      const response = await fetch(
+        "/api/relationships/team-members?entityId=entity_6b6402fb266f1c3207c7963d",
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.detail ?? body.error ?? "Traversal failed");
+      }
+      setTeamTraversal(body as TeamTraversal);
+      setTeamStatus("idle");
+    } catch (caught) {
+      setTeamError(caught instanceof Error ? caught.message : String(caught));
+      setTeamStatus("error");
     }
   }
 
@@ -245,6 +281,56 @@ export default function Home() {
             </div>
           )}
         </section>
+      </section>
+
+      <section className="traversal-panel">
+        <div className="section-heading">
+          <span>03</span>
+          <div>
+            <p className="eyebrow">Multi-hop proof</p>
+            <h2>Walk from product to people to source</h2>
+          </div>
+        </div>
+        <div className="traversal-grid">
+          <div>
+            <p className="traversal-copy">
+              This query traverses the real ActionGenie product entity through
+              materialized team relationships, canonical people, name claims,
+              and the original HERB employee records.
+            </p>
+            <button type="button" onClick={traceTeam} disabled={teamStatus === "loading"}>
+              {teamStatus === "loading" ? "Walking four graph nodes…" : "Trace ActionGenie team"}
+            </button>
+            <code className="path-code">
+              Product → HAS_TEAM_MEMBER → Person → ASSERTS → Claim → SUPPORTED_BY → SourceObject
+            </code>
+          </div>
+          <div className="traversal-result" aria-live="polite">
+            {teamStatus === "error" && <p className="traversal-error">{teamError}</p>}
+            {!teamTraversal && teamStatus !== "error" && (
+              <p className="traversal-placeholder">Run the traversal to reveal the complete team and each member’s source record.</p>
+            )}
+            {teamTraversal && (
+              <>
+                <div className="traversal-total">
+                  <strong>{teamTraversal.memberCount}</strong>
+                  <span>canonical team members found</span>
+                </div>
+                <div className="member-list">
+                  {teamTraversal.members.slice(0, 8).map((member) => (
+                    <article key={member.entityLogicalId}>
+                      <strong>{member.displayName}</strong>
+                      <span>{member.sourceSystem} · {member.sourceNativeId}</span>
+                    </article>
+                  ))}
+                </div>
+                {teamTraversal.memberCount > 8 && (
+                  <p className="more-members">+ {teamTraversal.memberCount - 8} more traversed members</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </section>
     </main>
   );

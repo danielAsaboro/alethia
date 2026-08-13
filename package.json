@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "ingest:herb": "tsx src/cli/ingest-herb.ts",
+    "evaluate:herb": "tsx src/cli/evaluate-herb.ts",
     "hydra:up": "./scripts/hydradb-up.sh",
     "hydra:down": "docker compose down",
     "hydra:smoke": "tsx src/cli/hydra-smoke.ts"

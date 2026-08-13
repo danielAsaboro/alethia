@@ -15,5 +15,7 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain("NOT_FOUND");
     expect(html).toContain("UNKNOWN");
     expect(html).toContain("HydraDB unavailable");
+    expect(html).toContain("Trace ActionGenie team");
+    expect(html).toContain("Multi-hop proof");
   });
 });

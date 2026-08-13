@@ -75,6 +75,16 @@ export interface GraphClaimEvidence {
   sourceNativeId: string;
 }
 
+export interface TeamMemberEvidence {
+  entityLogicalId: string;
+  displayName: string;
+  relationshipClaimId: string;
+  nameClaimId: string;
+  sourceLogicalId: string;
+  sourceSystem: string;
+  sourceNativeId: string;
+}
+
 interface HydraValue {
   type: string;
   value: unknown;
@@ -302,5 +312,50 @@ export class HydraRepository {
         },
       ];
     });
+  }
+
+  async findTeamMemberEvidence(
+    productEntityLogicalId: string,
+  ): Promise<TeamMemberEvidence[]> {
+    const rows = await this.query(
+      "MATCH (p:Entity {id: $productId})-[r:HAS_TEAM_MEMBER]->(m:Entity)-[:ASSERTS]->(c:Claim)-[:SUPPORTED_BY]->(s:SourceObject) RETURN m.logical_id AS member, r.payload_json AS relationshipPayload, c.logical_id AS claim, c.payload_json AS claimPayload, s.logical_id AS source, s.payload_json AS sourcePayload",
+      { productId: hydraIntId(productEntityLogicalId) },
+    );
+    const byMember = new Map<string, TeamMemberEvidence>();
+    for (const row of rows) {
+      const claimPayload = JSON.parse(String(row.claimPayload)) as Record<
+        string,
+        unknown
+      >;
+      if (claimPayload.predicate !== "display_name") continue;
+      const relationshipPayload = JSON.parse(
+        String(row.relationshipPayload ?? "{}"),
+      ) as Record<string, unknown>;
+      const sourcePayload = JSON.parse(String(row.sourcePayload)) as Record<
+        string,
+        unknown
+      >;
+      const claimObject =
+        typeof claimPayload.objectJson === "string"
+          ? (JSON.parse(claimPayload.objectJson) as Record<string, unknown>)
+          : undefined;
+      const member = String(row.member);
+      if (!byMember.has(member)) {
+        byMember.set(member, {
+          entityLogicalId: member,
+          displayName: String(claimObject?.value ?? claimPayload.value ?? "Unknown"),
+          relationshipClaimId: String(relationshipPayload.claimId ?? ""),
+          nameClaimId: String(row.claim),
+          sourceLogicalId: String(row.source),
+          sourceSystem: String(sourcePayload.sourceSystem ?? "unknown"),
+          sourceNativeId: String(sourcePayload.nativeId ?? "unknown"),
+        });
+      }
+    }
+    return [...byMember.values()].sort(
+      (left, right) =>
+        left.displayName.localeCompare(right.displayName) ||
+        left.entityLogicalId.localeCompare(right.entityLogicalId),
+    );
   }
 }

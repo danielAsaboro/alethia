@@ -110,6 +110,21 @@ async function main(): Promise<void> {
     if (evidencePath.length !== 3) {
       throw new Error("HydraDB evidence traversal returned no path");
     }
+    const productSource = ingestion.records.find(
+      (record) =>
+        record.sourceObjectType === "product" &&
+        record.sourceNativeId === "ActionGenie",
+    );
+    const productEntity = productSource
+      ? ingestion.resolution.entities.find((item) =>
+          item.sourceObjectIds.includes(productSource.id),
+        )
+      : undefined;
+    if (!productEntity) throw new Error("ActionGenie entity was not resolved");
+    const teamMembers = await repository.findTeamMemberEvidence(productEntity.id);
+    if (teamMembers.length !== 66) {
+      throw new Error(`ActionGenie traversal returned ${teamMembers.length} team members`);
+    }
 
     const artifact = {
       startedAt,
@@ -134,6 +149,13 @@ async function main(): Promise<void> {
       idempotency: { firstWriteMs, secondWriteMs },
       samplePresence,
       evidencePath,
+      multiHop: {
+        startEntityLogicalId: productEntity.id,
+        traversal:
+          "(Product)-[:HAS_TEAM_MEMBER]->(Person)-[:ASSERTS]->(Claim)-[:SUPPORTED_BY]->(SourceObject)",
+        memberCount: teamMembers.length,
+        sample: teamMembers.slice(0, 3),
+      },
     };
     const evidencePathname = path.resolve(options.evidence);
     await mkdir(path.dirname(evidencePathname), { recursive: true });

@@ -95,13 +95,30 @@ button:disabled { cursor: wait; opacity: .65; transform: none; }
 .coverage-card.complete { box-shadow: inset 4px 0 0 var(--acid); }
 .coverage-card.incomplete { box-shadow: inset 4px 0 0 var(--amber); }
 .coverage-card > p:last-child { margin-bottom: 0; }
+.traversal-panel { background: rgba(251,250,245,.9); border: 1px solid var(--ink); margin-top: 3rem; padding: 1.5rem; }
+.traversal-grid { display: grid; gap: 3rem; grid-template-columns: .75fr 1.25fr; }
+.traversal-copy { color: #35403b; font-size: .9rem; line-height: 1.6; margin: 0 0 1.25rem; max-width: 55ch; }
+.path-code { background: #e8e8df; display: block; font-size: .67rem; line-height: 1.6; margin-top: 1rem; overflow-wrap: anywhere; padding: .8rem; }
+.traversal-result { border-left: 1px solid var(--line); min-height: 13rem; padding-left: 2rem; }
+.traversal-placeholder, .traversal-error { color: var(--muted); font-size: .85rem; line-height: 1.6; max-width: 42ch; }
+.traversal-error { color: #a13a1b; }
+.traversal-total { align-items: baseline; border-bottom: 1px solid var(--ink); display: flex; gap: .8rem; padding-bottom: .8rem; }
+.traversal-total strong { color: var(--ink); font-size: 2.5rem; letter-spacing: -.06em; }
+.traversal-total span, .more-members { color: var(--muted); font-family: monospace; font-size: .7rem; text-transform: uppercase; }
+.member-list { display: grid; grid-template-columns: 1fr 1fr; }
+.member-list article { border-bottom: 1px solid var(--line); display: flex; flex-direction: column; padding: .7rem 0; }
+.member-list article:nth-child(odd) { padding-right: 1rem; }
+.member-list article:nth-child(even) { border-left: 1px solid var(--line); padding-left: 1rem; }
+.member-list strong { font-size: .82rem; }
+.member-list span { color: var(--muted); font-family: monospace; font-size: .65rem; margin-top: .25rem; }
 
 @media (max-width: 900px) {
-  .hero, .workspace { grid-template-columns: 1fr; }
+  .hero, .workspace, .traversal-grid { grid-template-columns: 1fr; }
   .verdict-strip { grid-template-columns: 1fr 1fr; }
   .verdict-definition:nth-child(3) { border-left: 0; border-top: 1px solid var(--ink); }
   .verdict-definition:nth-child(4) { border-top: 1px solid var(--ink); }
   .dossier-panel { border-left: 1px solid var(--ink); border-top: 0; }
+  .traversal-result { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 1.5rem; }
 }
 
 @media (max-width: 560px) {
