@@ -4,7 +4,7 @@ SourceTruce is an enterprise evidence court built for Hack Hydra Track 01. It co
 
 The distinction between the last two is the product: SourceTruce only says `NOT_FOUND` when a recorded coverage slice proves that the relevant source, object type, predicate family, and content scope were examined. Otherwise it abstains with `UNKNOWN` and names the missing coverage.
 
-No LLM is required for the current structural pipeline. Ingestion, identity resolution, claim extraction, coverage checks, HydraDB persistence, and verdict selection are deterministic. A future QVAC adapter belongs only at the unstructured extraction boundary; it cannot bypass provenance, coverage, or conflict policy.
+No LLM is required for the structural pipeline. Ingestion, identity resolution, structural claim extraction, coverage checks, HydraDB persistence, and verdict selection are deterministic. QVAC is integrated only at the optional unstructured extraction boundary; its output cannot bypass provenance, exact-quote grounding, coverage, or conflict policy.
 
 ## What works now
 
@@ -17,6 +17,7 @@ No LLM is required for the current structural pipeline. Ingestion, identity reso
 - coverage-qualified negative answers and explicit abstention;
 - a local judge-facing web app with loading, empty, error, evidence, and knowledge-boundary states;
 - repeatable metrics for verdicts, evidence retrieval, identity resolution, latency, and ablations.
+- a real local QVAC inference path with schema, predicate-allowlist, and exact-source-quote validation.
 
 ## Architecture
 
@@ -118,6 +119,27 @@ npm run build
 ```
 
 The integration test is skipped during ordinary unit runs and only passes when it performs a real write/read traversal against a running HydraDB instance.
+
+## Local QVAC extraction
+
+SourceTruce pins `@qvac/cli` 0.11.0 and QVAC's official Vercel AI SDK provider, `@qvac/ai-sdk-provider` 0.6.0, alongside AI SDK 7.0.68. It uses QVAC SDK 0.17.1 with the registry model constant `QWEN3_600M_INST_Q4`. The server binds only to `127.0.0.1:11436`; enterprise text stays on the machine.
+
+```bash
+npm run qvac:doctor
+npm run qvac:serve
+```
+
+In a second terminal, reproduce the real HERB extraction:
+
+```bash
+npm run qvac:smoke -- \
+  --input ../resources/HERB \
+  --evidence ../submission/evidence/qvac/herb-employee.json
+```
+
+The verified provider run extracted `has_role = Software Engineer` for the canonical Charlie Davis entity and records its measured latency in the evidence artifact. The claim retained the original HERB source-object ID and an exact contiguous evidence quote, then completed a real HydraDB write/read round trip across `Entity -[:ASSERTS]-> Claim -[:SUPPORTED_BY]-> SourceObject`. Model output is rejected unless it parses against the claim schema, uses an explicitly allowed predicate, and quotes text that is present verbatim in the source.
+
+QVAC does not decide entity merges, authority, conflicts, coverage, or final verdicts. Keeping that boundary narrow makes a weak or malicious extraction fail closed instead of silently rewriting enterprise truth.
 
 ## Dataset attribution
 

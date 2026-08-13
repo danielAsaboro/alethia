@@ -1,0 +1,17 @@
+{
+  "cacheDirectory": ".local/qvac",
+  "serve": {
+    "models": {
+      "sourcetruce-extractor": {
+        "model": "QWEN3_600M_INST_Q4",
+        "default": true,
+        "preload": true,
+        "config": {
+          "ctx_size": 4096,
+          "reasoning_budget": 0,
+          "tools": false
+        }
+      }
+    }
+  }
+}
