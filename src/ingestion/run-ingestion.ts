@@ -1,6 +1,12 @@
 import path from "node:path";
 
+import type { ExtractionGap, ReferencedEntity } from "@/claims/claim-extractor";
 import { stableId } from "@/domain/ids";
+import {
+  createExtractionContext,
+  DeterministicClaimExtractor,
+} from "@/claims/deterministic-extractor";
+import type { Claim } from "@/domain/ontology";
 import { resolveEntities } from "@/resolution/resolve-entities";
 import type {
   IngestionBundle,
@@ -59,6 +65,21 @@ export async function runIngestion(
     });
   }
 
+  const resolution = resolveEntities(records);
+  const extractionContext = createExtractionContext(records, resolution);
+  const extractor = new DeterministicClaimExtractor();
+  const claims: Claim[] = [];
+  const referencedEntityById = new Map<string, ReferencedEntity>();
+  const gaps: ExtractionGap[] = [];
+  for (const record of records) {
+    const result = await extractor.extract(record, extractionContext);
+    claims.push(...result.claims);
+    gaps.push(...result.gaps);
+    for (const entity of result.referencedEntities) {
+      referencedEntityById.set(entity.id, entity);
+    }
+  }
+
   return {
     adapter: {
       sourceSystem: adapter.sourceSystem,
@@ -68,7 +89,12 @@ export async function runIngestion(
     records,
     rejected,
     coverage,
-    resolution: resolveEntities(records),
+    resolution,
+    extraction: {
+      claims,
+      referencedEntities: [...referencedEntityById.values()],
+      gaps,
+    },
     summary: {
       records: records.length,
       rejected: rejected.length,

@@ -64,6 +64,29 @@ describe("runIngestion", () => {
     );
   });
 
+  it("extracts the complete deterministic structural claim lane", async () => {
+    const result = await runIngestion(
+      new HerbAdapter(),
+      path.resolve(process.cwd(), "../resources/HERB"),
+    );
+
+    expect(result.extraction.claims).toHaveLength(5130);
+    expect(result.extraction.gaps).toEqual([]);
+    expect(
+      result.extraction.claims.filter(
+        (claim) => claim.predicate === "has_team_member",
+      ),
+    ).toHaveLength(1370);
+    expect(
+      result.extraction.claims.filter(
+        (claim) => claim.predicate === "serves_customer",
+      ),
+    ).toHaveLength(720);
+    expect(
+      result.extraction.claims.filter((claim) => claim.predicate === "manages"),
+    ).toHaveLength(512);
+  });
+
   it("records invalid JSON as failed coverage instead of success", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-herb-"));
     temporaryDirectories.push(directory);
