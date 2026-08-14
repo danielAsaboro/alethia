@@ -164,8 +164,80 @@ interface HydraValue {
 }
 
 interface HydraResponse {
+  query_id: string;
   columns: string[];
   rows: HydraValue[][];
+  read_epoch: number | null;
+  bookmark: string | null;
+}
+
+export interface HydraQueryResult {
+  queryId: string;
+  readEpoch: number | null;
+  bookmark: string | null;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  latencyMs: number;
+  roundTrips: 1;
+}
+
+export interface NativePathInput {
+  sourceLogicalId: string;
+  targetLogicalId: string;
+  relationshipTypes: GraphRelationshipType[];
+  maxLength: number;
+  pathCount: number;
+}
+
+export interface HydraPathProof {
+  operation: "algo.SPpaths";
+  consistency: "strong";
+  queryId: string;
+  readEpoch: number | null;
+  bookmark: string | null;
+  latencyMs: number;
+  roundTrips: 1;
+  pathLength: number;
+  pathWeight: number;
+  pathCost: number;
+  nodes: Array<{ id: number; labels: string[]; logicalId: string | null }>;
+  relationships: Array<{
+    id: number;
+    type: string;
+    sourceId: number;
+    targetId: number;
+    logicalId: string | null;
+  }>;
+}
+
+type HydraConsistency = "causal" | "strong";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredSafeInteger(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError(`HydraDB native path has invalid ${field}`);
+  }
+  return value;
+}
+
+function requiredFiniteNumber(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`HydraDB native path has invalid ${field}`);
+  }
+  return value;
+}
+
+function logicalIdFromProperties(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const logicalId = value.logical_id;
+  if (typeof logicalId === "string") return logicalId;
+  if (isRecord(logicalId) && typeof logicalId.String === "string") {
+    return logicalId.String;
+  }
+  return null;
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
@@ -217,10 +289,12 @@ export class HydraRepository {
 
   async close(): Promise<void> {}
 
-  private async query(
+  private async request(
     cypher: string,
     parameters: Record<string, unknown> = {},
-  ): Promise<Record<string, unknown>[]> {
+    consistency: HydraConsistency = "causal",
+  ): Promise<HydraQueryResult> {
+    const startedAt = performance.now();
     const response = await fetch(this.queryUrl, {
       method: "POST",
       headers: {
@@ -233,6 +307,7 @@ export class HydraRepository {
         query_id: hydraRequestQueryId(cypher, parameters),
         query: cypher,
         parameters,
+        consistency,
       }),
     });
     const body = await response.text();
@@ -240,11 +315,176 @@ export class HydraRepository {
       throw new Error(`HydraDB query failed (${response.status}): ${body}`);
     }
     const result = JSON.parse(body) as HydraResponse;
-    return result.rows.map((row) =>
+    if (
+      typeof result.query_id !== "string" ||
+      !Array.isArray(result.columns) ||
+      !Array.isArray(result.rows)
+    ) {
+      throw new TypeError("HydraDB returned a malformed query envelope");
+    }
+    const rows = result.rows.map((row) =>
       Object.fromEntries(
         result.columns.map((column, index) => [column, row[index]?.value]),
       ),
     );
+    return {
+      queryId: result.query_id,
+      readEpoch:
+        typeof result.read_epoch === "number" ? result.read_epoch : null,
+      bookmark: typeof result.bookmark === "string" ? result.bookmark : null,
+      columns: [...result.columns],
+      rows,
+      latencyMs: performance.now() - startedAt,
+      roundTrips: 1,
+    };
+  }
+
+  private async query(
+    cypher: string,
+    parameters: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>[]> {
+    return (await this.request(cypher, parameters)).rows;
+  }
+
+  async findNativePaths(input: NativePathInput): Promise<HydraPathProof[]> {
+    if (!input.sourceLogicalId || !input.targetLogicalId) {
+      throw new TypeError("Native path endpoints must be non-empty logical IDs");
+    }
+    if (
+      !Number.isInteger(input.maxLength) ||
+      input.maxLength < 1 ||
+      input.maxLength > 16
+    ) {
+      throw new TypeError("Native path maxLength must be between 1 and 16");
+    }
+    if (
+      !Number.isInteger(input.pathCount) ||
+      input.pathCount < 1 ||
+      input.pathCount > 100
+    ) {
+      throw new TypeError("Native path pathCount must be between 1 and 100");
+    }
+    const allowedTypes = [...new Set(input.relationshipTypes)];
+    if (
+      allowedTypes.length === 0 ||
+      allowedTypes.some(
+        (type) => !relationshipTypes.includes(type as GraphRelationshipType),
+      )
+    ) {
+      throw new TypeError("Native path relationshipTypes must be supported");
+    }
+
+    const relationshipLiteral = allowedTypes
+      .map((type) => `'${type}'`)
+      .join(", ");
+    const result = await this.request(
+      `CALL algo.SPpaths({sourceNode: $source, targetNode: $target, relTypes: [${relationshipLiteral}], maxLen: $maxLength, relDirection: 'outgoing', pathCount: $pathCount}) YIELD path, pathWeight, pathCost RETURN path, pathWeight, pathCost`,
+      {
+        source: hydraIntId(input.sourceLogicalId),
+        target: hydraIntId(input.targetLogicalId),
+        maxLength: input.maxLength,
+        pathCount: input.pathCount,
+      },
+      "strong",
+    );
+
+    return result.rows.map((row) => this.parseNativePath(row, result, input));
+  }
+
+  private parseNativePath(
+    row: Record<string, unknown>,
+    result: HydraQueryResult,
+    input: NativePathInput,
+  ): HydraPathProof {
+    if (!isRecord(row.path)) {
+      throw new TypeError("HydraDB native path result is missing path data");
+    }
+    const rawNodes = row.path.nodes;
+    const rawRelationships = row.path.relationships;
+    if (!Array.isArray(rawNodes) || !Array.isArray(rawRelationships)) {
+      throw new TypeError("HydraDB native path topology is malformed");
+    }
+    if (
+      rawNodes.length < 2 ||
+      rawNodes.length !== rawRelationships.length + 1 ||
+      rawRelationships.length > input.maxLength
+    ) {
+      throw new TypeError("HydraDB native path topology is malformed");
+    }
+
+    const nodes = rawNodes.map((rawNode) => {
+      if (!isRecord(rawNode) || !Array.isArray(rawNode.labels)) {
+        throw new TypeError("HydraDB native path node is malformed");
+      }
+      const labels = rawNode.labels;
+      if (labels.some((label) => typeof label !== "string")) {
+        throw new TypeError("HydraDB native path node labels are malformed");
+      }
+      return {
+        id: requiredSafeInteger(rawNode.id, "node ID"),
+        labels: labels as string[],
+        logicalId: logicalIdFromProperties(rawNode.properties),
+      };
+    });
+
+    const allowedTypes = new Set<string>(input.relationshipTypes);
+    const relationships = rawRelationships.map((rawRelationship, index) => {
+      if (!isRecord(rawRelationship)) {
+        throw new TypeError("HydraDB native path relationship is malformed");
+      }
+      const type = rawRelationship.edge_type;
+      if (typeof type !== "string" || !allowedTypes.has(type)) {
+        throw new TypeError(
+          "HydraDB native path contains a disallowed relationship type",
+        );
+      }
+      const sourceId = requiredSafeInteger(
+        rawRelationship.src,
+        "relationship source ID",
+      );
+      const targetId = requiredSafeInteger(
+        rawRelationship.dst,
+        "relationship target ID",
+      );
+      if (sourceId !== nodes[index]?.id || targetId !== nodes[index + 1]?.id) {
+        throw new TypeError("HydraDB native path relationship is not contiguous");
+      }
+      return {
+        id: requiredSafeInteger(rawRelationship.id, "relationship ID"),
+        type,
+        sourceId,
+        targetId,
+        logicalId: logicalIdFromProperties(rawRelationship.properties),
+      };
+    });
+
+    const expectedSourceId = hydraIntId(input.sourceLogicalId);
+    const expectedTargetId = hydraIntId(input.targetLogicalId);
+    if (
+      nodes[0]?.id !== expectedSourceId ||
+      nodes[nodes.length - 1]?.id !== expectedTargetId ||
+      (nodes[0]?.logicalId !== null &&
+        nodes[0]?.logicalId !== input.sourceLogicalId) ||
+      (nodes[nodes.length - 1]?.logicalId !== null &&
+        nodes[nodes.length - 1]?.logicalId !== input.targetLogicalId)
+    ) {
+      throw new TypeError("HydraDB native path endpoints do not match request");
+    }
+
+    return {
+      operation: "algo.SPpaths",
+      consistency: "strong",
+      queryId: result.queryId,
+      readEpoch: result.readEpoch,
+      bookmark: result.bookmark,
+      latencyMs: result.latencyMs,
+      roundTrips: 1,
+      pathLength: relationships.length,
+      pathWeight: requiredFiniteNumber(row.pathWeight, "path weight"),
+      pathCost: requiredFiniteNumber(row.pathCost, "path cost"),
+      nodes,
+      relationships,
+    };
   }
 
   async writeGraph(bundle: GraphWriteBundle): Promise<void> {

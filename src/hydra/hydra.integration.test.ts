@@ -67,6 +67,29 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         label: "SourceObject",
         properties: { sourceSystem: "integration", nativeId: "member-1" },
       },
+      {
+        logicalId: "entity_integration_native_path",
+        label: "Entity",
+        properties: { kind: "native_path_subject" },
+      },
+      {
+        logicalId: "claim_integration_native_path",
+        label: "Claim",
+        properties: {
+          predicate: "native_path_status",
+          objectJson: JSON.stringify({ kind: "literal", value: "verified" }),
+        },
+      },
+      {
+        logicalId: "observation_integration_native_path",
+        label: "ExtractionObservation",
+        properties: { method: "integration", evidenceQuote: "verified" },
+      },
+      {
+        logicalId: "source_integration_native_path",
+        label: "SourceObject",
+        properties: { sourceSystem: "integration", nativeId: "native-path-1" },
+      },
     ],
     edges: [
       {
@@ -123,6 +146,33 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         targetLogicalId: "source_integration_member",
         properties: {},
       },
+      {
+        logicalId: "edge_integration_native_asserts",
+        type: "ASSERTS",
+        sourceLabel: "Entity",
+        sourceLogicalId: "entity_integration_native_path",
+        targetLabel: "Claim",
+        targetLogicalId: "claim_integration_native_path",
+        properties: {},
+      },
+      {
+        logicalId: "edge_integration_native_observation",
+        type: "HAS_OBSERVATION",
+        sourceLabel: "Claim",
+        sourceLogicalId: "claim_integration_native_path",
+        targetLabel: "ExtractionObservation",
+        targetLogicalId: "observation_integration_native_path",
+        properties: {},
+      },
+      {
+        logicalId: "edge_integration_native_source",
+        type: "SUPPORTED_BY",
+        sourceLabel: "ExtractionObservation",
+        sourceLogicalId: "observation_integration_native_path",
+        targetLabel: "SourceObject",
+        targetLogicalId: "source_integration_native_path",
+        properties: {},
+      },
     ],
   };
 
@@ -146,7 +196,7 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
     await repository.writeGraph(bundle);
 
     const presence = await repository.getPresence(bundle);
-    expect(presence).toEqual({ nodes: 8, edges: 6 });
+    expect(presence).toEqual({ nodes: 12, edges: 9 });
     expect(
       await repository.findEvidencePath("entity_integration_evidence"),
     ).toEqual([
@@ -204,6 +254,35 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         sourceNativeId: "member-1",
       },
     ]);
+
+    const nativePaths = await repository.findNativePaths({
+      sourceLogicalId: "entity_integration_native_path",
+      targetLogicalId: "source_integration_native_path",
+      relationshipTypes: ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
+      maxLength: 3,
+      pathCount: 1,
+    });
+    expect(nativePaths).toHaveLength(1);
+    expect(nativePaths[0]).toMatchObject({
+      operation: "algo.SPpaths",
+      consistency: "strong",
+      queryId: expect.stringMatching(/^sourcetruce-read-/),
+      readEpoch: expect.any(Number),
+      bookmark: expect.stringMatching(/^sgk:/),
+      roundTrips: 1,
+      pathLength: 3,
+      nodes: [
+        { logicalId: "entity_integration_native_path" },
+        { logicalId: "claim_integration_native_path" },
+        { logicalId: "observation_integration_native_path" },
+        { logicalId: "source_integration_native_path" },
+      ],
+      relationships: [
+        { type: "ASSERTS" },
+        { type: "HAS_OBSERVATION" },
+        { type: "SUPPORTED_BY" },
+      ],
+    });
   });
 
   it("round-trips the real qst_0411 observation and decision paths", async () => {
