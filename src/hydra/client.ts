@@ -9,6 +9,15 @@ const labels = [
   "ResolutionDecision",
   "IngestionRun",
   "AuthorityPolicy",
+  "Identity",
+  "ResolutionSignal",
+  "ResolutionConstraint",
+  "ExtractionObservation",
+  "SourceSchemaTerm",
+  "OntologyTerm",
+  "AlignmentDecision",
+  "Conflict",
+  "CounterfactualRequirement",
 ] as const;
 const relationshipTypes = [
   "ASSERTS",
@@ -30,6 +39,16 @@ const relationshipTypes = [
   "HAS_TEAM_MEMBER",
   "SERVES_CUSTOMER",
   "MANAGES",
+  "HAS_IDENTITY",
+  "CANDIDATE_SAME_AS",
+  "BLOCKED_BY",
+  "HAS_OBSERVATION",
+  "OBSERVED_AS",
+  "MAPS_TO",
+  "REJECTED_MAPPING",
+  "CORROBORATES",
+  "WOULD_CHANGE_IF",
+  "REQUIRES",
 ] as const;
 
 export type GraphLabel = (typeof labels)[number];
@@ -83,6 +102,28 @@ export interface TeamMemberEvidence {
   sourceLogicalId: string;
   sourceSystem: string;
   sourceNativeId: string;
+}
+
+export interface GraphObservationEvidence {
+  claimLogicalId: string;
+  observationLogicalId: string;
+  sourceLogicalId: string;
+  predicate: string;
+  object:
+    | { kind: "literal"; value: string | number | boolean }
+    | { kind: "entity"; entityId: string };
+  method: string;
+  extractorVersion: string;
+  evidenceQuote: string;
+  sourceSystem: string;
+  sourceNativeId: string;
+}
+
+export interface GraphConflictDecision {
+  conflictId: string;
+  resolution: string;
+  claimIds: string[];
+  policyId?: string;
 }
 
 interface HydraValue {
@@ -280,6 +321,73 @@ export class HydraRepository {
         },
       ];
     });
+  }
+
+  async findObservationEvidence(
+    entityLogicalId: string,
+  ): Promise<GraphObservationEvidence[]> {
+    const rows = await this.query(
+      "MATCH (e:Entity {id: $entityId})-[:ASSERTS]->(c:Claim)-[:HAS_OBSERVATION]->(o:ExtractionObservation)-[:SUPPORTED_BY]->(s:SourceObject) RETURN c.logical_id AS claim, c.payload_json AS claimPayload, o.logical_id AS observation, o.payload_json AS observationPayload, s.logical_id AS source, s.payload_json AS sourcePayload",
+      { entityId: hydraIntId(entityLogicalId) },
+    );
+    return rows
+      .map((row): GraphObservationEvidence => {
+        const claimPayload = JSON.parse(String(row.claimPayload)) as Record<
+          string,
+          unknown
+        >;
+        const observationPayload = JSON.parse(
+          String(row.observationPayload),
+        ) as Record<string, unknown>;
+        const sourcePayload = JSON.parse(String(row.sourcePayload)) as Record<
+          string,
+          unknown
+        >;
+        return {
+          claimLogicalId: String(row.claim),
+          observationLogicalId: String(row.observation),
+          sourceLogicalId: String(row.source),
+          predicate: String(claimPayload.predicate),
+          object: JSON.parse(String(claimPayload.objectJson)) as GraphObservationEvidence["object"],
+          method: String(observationPayload.method),
+          extractorVersion: String(observationPayload.extractorVersion),
+          evidenceQuote: String(observationPayload.evidenceQuote),
+          sourceSystem: String(sourcePayload.sourceSystem),
+          sourceNativeId: String(sourcePayload.nativeId),
+        };
+      })
+      .sort((left, right) =>
+        left.observationLogicalId.localeCompare(right.observationLogicalId),
+      );
+  }
+
+  async findConflictDecision(
+    conflictLogicalId: string,
+  ): Promise<GraphConflictDecision | null> {
+    const conflictId = hydraIntId(conflictLogicalId);
+    const [claimRows, policyRows] = await Promise.all([
+      this.query(
+        "MATCH (f:Conflict {id: $conflictId})-[:CONSIDERS]->(c:Claim) RETURN f.logical_id AS conflict, f.payload_json AS conflictPayload, c.logical_id AS claim",
+        { conflictId },
+      ),
+      this.query(
+        "MATCH (f:Conflict {id: $conflictId})-[:DECIDED_BY]->(p:AuthorityPolicy) RETURN p.logical_id AS policy",
+        { conflictId },
+      ),
+    ]);
+    if (claimRows.length === 0) return null;
+    const payload = JSON.parse(String(claimRows[0].conflictPayload)) as Record<
+      string,
+      unknown
+    >;
+    return {
+      conflictId: String(claimRows[0].conflict),
+      resolution: String(payload.resolution ?? "unresolved"),
+      claimIds: [...new Set(claimRows.map((row) => String(row.claim)))].sort(),
+      policyId: policyRows[0]?.policy
+        ? String(policyRows[0].policy)
+        : undefined,
+    };
   }
 
   async findCoverageSlices(

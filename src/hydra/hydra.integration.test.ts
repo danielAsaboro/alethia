@@ -1,9 +1,16 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { consolidateClaims } from "@/claims/consolidate-claims";
+import type { ClaimObservation } from "@/domain/evidence";
+import { stableId } from "@/domain/ids";
 import {
   HydraRepository,
   type GraphWriteBundle,
 } from "./client";
+import { mapEvidenceSystemToGraph } from "./evidence-graph";
 
 const runIntegration = process.env.HYDRA_INTEGRATION === "1";
 
@@ -197,5 +204,155 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         sourceNativeId: "member-1",
       },
     ]);
+  });
+
+  it("round-trips the real qst_0411 observation and decision paths", async () => {
+    const evidencePaths = [
+      path.resolve(
+        process.cwd(),
+        "../submission/evidence/qvac/erb-conflicts.json",
+      ),
+      path.resolve(
+        process.cwd(),
+        "../../../submission/evidence/qvac/erb-conflicts.json",
+      ),
+    ];
+    type RealExtraction = {
+      cacheKey: string;
+      status: string;
+      sourceObjectId: string;
+      sourceNativeId: string;
+      sourceSystem: string;
+      sourceDigest: string;
+      observation?: {
+        value: string | number | boolean;
+        evidenceQuote: string;
+        lifecycle: string;
+      };
+    };
+    let artifact: {
+      cases: Array<{
+        questionId: string;
+        extractions: RealExtraction[];
+      }>;
+    } | undefined;
+    for (const evidencePath of evidencePaths) {
+      try {
+        artifact = JSON.parse(await readFile(evidencePath, "utf8")) as {
+          cases: Array<{
+            questionId: string;
+            extractions: RealExtraction[];
+          }>;
+        };
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    if (!artifact) throw new Error("Real qst_0411 QVAC evidence is missing");
+    const realCase = artifact.cases.find(
+      (candidate) => candidate.questionId === "qst_0411",
+    );
+    if (!realCase) throw new Error("Real qst_0411 case is missing");
+    const accepted = realCase.extractions.filter(
+      (extraction) => extraction.status === "accepted" && extraction.observation,
+    );
+    expect(accepted).toHaveLength(2);
+
+    const subjectEntityId = stableId("entity", {
+      kind: "infrastructure_pool",
+      name: "dp-132-usw",
+    });
+    const inputObservations: ClaimObservation[] = accepted.map(
+      (extraction) => ({
+        id: stableId("observation", {
+          cacheKey: extraction.cacheKey,
+          promptVersion: "conflict-observation-v7",
+        }),
+        claimCandidate: {
+          id: `candidate_${extraction.cacheKey}`,
+          subjectEntityId,
+          predicate: "conflict_answer",
+          object: {
+            kind: "literal",
+            value: extraction.observation!.value,
+          },
+          sourceObjectId: extraction.sourceObjectId,
+          sourceSystem: extraction.sourceSystem,
+          extractionMethod: "qvac",
+          extractorVersion: "qvac:sourcetruce-extractor:v7",
+        },
+        evidenceQuote: extraction.observation!.evidenceQuote,
+        method: "qvac",
+        extractorVersion: "qvac:sourcetruce-extractor:v7",
+      }),
+    );
+    const consolidated = consolidateClaims(inputObservations);
+    const observationForLifecycle = (lifecycle: string) =>
+      consolidated.observations.find((observation) =>
+        accepted.some(
+          (extraction) =>
+            extraction.observation?.lifecycle === lifecycle &&
+            extraction.sourceObjectId ===
+              observation.claimCandidate.sourceObjectId,
+        ),
+      );
+    const appliedObservation = observationForLifecycle("applied");
+    const proposalObservation = observationForLifecycle("proposal");
+    if (!appliedObservation || !proposalObservation) {
+      throw new Error("Real qst_0411 lifecycle pair is incomplete");
+    }
+    const conflictId = stableId("conflict", {
+      questionId: "qst_0411",
+      appliedClaimId: appliedObservation.claimCandidate.id,
+      proposalClaimId: proposalObservation.claimCandidate.id,
+    });
+    const policyId = "policy_lifecycle_precedence_v1";
+    const graph = mapEvidenceSystemToGraph({
+      claims: consolidated.claims,
+      observations: consolidated.observations,
+      sources: accepted.map((extraction) => ({
+        id: extraction.sourceObjectId,
+        sourceSystem: extraction.sourceSystem,
+        sourceNativeId: extraction.sourceNativeId,
+        payloadDigest: extraction.sourceDigest,
+      })),
+      conflicts: [
+        {
+          id: conflictId,
+          leftClaimId: appliedObservation.claimCandidate.id,
+          rightClaimId: proposalObservation.claimCandidate.id,
+          resolution: "left",
+          policyId,
+        },
+      ],
+      policies: [
+        {
+          id: policyId,
+          predicate: "conflict_answer",
+          sourceSystem: "enterprise",
+          priority: 100,
+          rationale: "Grounded applied state supersedes a grounded proposal",
+        },
+      ],
+    });
+
+    await repository.writeGraph(graph);
+    await repository.writeGraph(graph);
+    expect(await repository.getPresence(graph)).toEqual({
+      nodes: graph.nodes.length,
+      edges: graph.edges.length,
+    });
+    expect(await repository.findObservationEvidence(subjectEntityId)).toHaveLength(
+      2,
+    );
+    expect(await repository.findConflictDecision(conflictId)).toMatchObject({
+      conflictId,
+      claimIds: expect.arrayContaining([
+        appliedObservation.claimCandidate.id,
+        proposalObservation.claimCandidate.id,
+      ]),
+      policyId,
+    });
   });
 });
