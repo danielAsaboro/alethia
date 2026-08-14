@@ -20,10 +20,19 @@ export interface EvidenceGraphSource {
   payloadDigest: string;
 }
 
+export interface EvidenceGraphSourceRelation {
+  type: "VERSION_OF" | "DUPLICATE_OF" | "MISFILED_AS";
+  sourceObjectId: string;
+  targetSourceObjectId: string;
+  reason: string;
+  orderKnown?: boolean;
+}
+
 export interface EvidenceGraphInput {
   claims: ConsolidatedClaim[];
   observations: ClaimObservation[];
   sources: EvidenceGraphSource[];
+  sourceRelations?: EvidenceGraphSourceRelation[];
   corroborations?: ClaimCorroboration[];
   conflicts: EvidenceConflict[];
   policies: AuthorityPolicy[];
@@ -79,6 +88,30 @@ export function mapEvidenceSystemToGraph(
         payloadDigest: source.payloadDigest,
       },
     });
+  }
+
+  for (const relation of input.sourceRelations ?? []) {
+    if (
+      !sourceIds.has(relation.sourceObjectId) ||
+      !sourceIds.has(relation.targetSourceObjectId)
+    ) {
+      throw new TypeError(
+        `Source relation references a missing source: ${relation.sourceObjectId} -> ${relation.targetSourceObjectId}`,
+      );
+    }
+    edges.push(
+      edge({
+        type: relation.type,
+        sourceLabel: "SourceObject",
+        sourceLogicalId: relation.sourceObjectId,
+        targetLabel: "SourceObject",
+        targetLogicalId: relation.targetSourceObjectId,
+        properties: {
+          reason: relation.reason,
+          orderKnown: relation.orderKnown ?? false,
+        },
+      }),
+    );
   }
 
   for (const policy of input.policies) {

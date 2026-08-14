@@ -75,6 +75,15 @@ export interface GraphWriteBundle {
   edges: GraphEdge[];
 }
 
+export interface GraphSourceVersionRelation {
+  sourceObjectId: string;
+  targetSourceObjectId: string;
+  sourceSystem: string;
+  sourceNativeId: string;
+  reason: string;
+  orderKnown: boolean;
+}
+
 export interface HydraConfig {
   httpUrl: string;
   token: string;
@@ -514,6 +523,38 @@ export class HydraRepository {
         },
       ];
     });
+  }
+
+  async findSourceVersionRelations(
+    sourceSystem: string,
+    sourceNativeId: string,
+  ): Promise<GraphSourceVersionRelation[]> {
+    const rows = await this.query(
+      "MATCH (a:SourceObject)-[r:VERSION_OF]->(b:SourceObject) RETURN a.logical_id AS source, a.payload_json AS sourcePayload, r.payload_json AS relationPayload, b.logical_id AS target, b.payload_json AS targetPayload",
+    );
+    return rows.flatMap((row): GraphSourceVersionRelation[] => {
+      const sourcePayload = JSON.parse(String(row.sourcePayload)) as Record<string, unknown>;
+      const targetPayload = JSON.parse(String(row.targetPayload)) as Record<string, unknown>;
+      const relationPayload = JSON.parse(String(row.relationPayload ?? "{}")) as Record<string, unknown>;
+      if (
+        sourcePayload.sourceSystem !== sourceSystem ||
+        sourcePayload.nativeId !== sourceNativeId ||
+        targetPayload.sourceSystem !== sourceSystem ||
+        targetPayload.nativeId !== sourceNativeId
+      ) {
+        return [];
+      }
+      return [{
+        sourceObjectId: String(row.source),
+        targetSourceObjectId: String(row.target),
+        sourceSystem,
+        sourceNativeId,
+        reason: String(relationPayload.reason ?? ""),
+        orderKnown: relationPayload.orderKnown === true,
+      }];
+    }).sort((left, right) =>
+      left.sourceObjectId.localeCompare(right.sourceObjectId),
+    );
   }
 
   async findTeamMemberEvidence(

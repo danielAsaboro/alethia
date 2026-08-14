@@ -42,9 +42,19 @@ SourceTruce stores evidence, decisions, and uncertainty as graph structure. Logi
 | `RESOLVES_TO` | Source object or accepted decision resolves to a canonical entity |
 | `COVERS` | Ingestion run completed or attempted a coverage slice |
 | `OBSERVED_IN` | Source object arrived in an ingestion run |
+| `VERSION_OF` | Divergent payload snapshots share a source-qualified native ID; edge direction is only chronological when evidence supplies chronology |
 | `WOULD_CHANGE_IF` / `REQUIRES` | Verdict counterfactual dependency |
 
 Domain relationships such as `MEMBER_OF`, `MANAGES`, `HAS_TEAM_MEMBER`, and `SERVES_CUSTOMER` are materialized from entity-valued claims and retain their originating claim IDs.
+
+## Source-version path
+
+```cypher
+MATCH (variant:SourceObject)-[r:VERSION_OF]->(anchor:SourceObject)
+RETURN variant, r, anchor
+```
+
+The real ERB conflict acquisition contains one Jira native ID with two divergent payloads. SourceTruce preserves both and writes one `VERSION_OF` edge. Because the acquisition has no reliable version timestamps, the edge uses a deterministic digest anchor and stores `orderKnown=false`; it does not manufacture a “latest” document.
 
 ## Conflict evidence path
 

@@ -198,4 +198,48 @@ describe("mapEvidenceSystemToGraph", () => {
       ]),
     );
   });
+
+  it("maps explicit source-version lineage without guessing recency", () => {
+    const graph = mapEvidenceSystemToGraph({
+      claims: [],
+      observations: [],
+      sources: [
+        {
+          id: "source_version_anchor",
+          sourceSystem: "jira",
+          sourceNativeId: "dsid_shared",
+          payloadDigest: "digest_a",
+        },
+        {
+          id: "source_version_variant",
+          sourceSystem: "jira",
+          sourceNativeId: "dsid_shared",
+          payloadDigest: "digest_b",
+        },
+      ],
+      sourceRelations: [
+        {
+          type: "VERSION_OF",
+          sourceObjectId: "source_version_variant",
+          targetSourceObjectId: "source_version_anchor",
+          reason: "same_native_id_divergent_digest",
+          orderKnown: false,
+        },
+      ],
+      conflicts: [],
+      policies: [],
+    });
+
+    expect(graph.edges).toEqual([
+      expect.objectContaining({
+        type: "VERSION_OF",
+        sourceLogicalId: "source_version_variant",
+        targetLogicalId: "source_version_anchor",
+        properties: {
+          reason: "same_native_id_divergent_digest",
+          orderKnown: false,
+        },
+      }),
+    ]);
+  });
 });

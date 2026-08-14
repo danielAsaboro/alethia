@@ -9,6 +9,7 @@ The one-click demo uses real [Enterprise RAG Bench](https://github.com/onyx-dot-
 Conventional RAG retrieves passages and asks a model to reconcile them inside a prompt. SourceTruce makes the reconciliation inspectable graph data:
 
 - multiple extraction observations consolidate into one semantic claim without duplicating the answer;
+- divergent payloads sharing one source-qualified native ID remain separate objects connected by explicit `VERSION_OF` lineage; unknown chronology is never guessed;
 - losing claims remain queryable after conflict resolution;
 - `owner` in Google Drive, HubSpot, and Fireflies maps through source context and domain/range constraints—not field-name similarity;
 - names never auto-merge by fuzziness alone; verified identity conflicts are hard blockers;
@@ -97,6 +98,10 @@ npm run adjudicate:erb-conflict -- \
   --extractions "$EVIDENCE_DIR/erb-conflicts.json" \
   --output "$EVIDENCE_DIR/qst_0411.json"
 npm run audit:herb-identities -- --input "$HERB_DIR" --output "$EVIDENCE_DIR/herb-identities.json"
+npm run audit:erb-versions -- \
+  --input "$ERB_CONFLICTS_JSONL" \
+  --manifest "$ERB_CONFLICTS_MANIFEST" \
+  --output "$EVIDENCE_DIR/erb-versions.json"
 ```
 
 The source-aware alignment command additionally requires an `alignment-discovery` acquisition manifest:
@@ -137,6 +142,7 @@ Fresh local evidence from August 19, 2026:
 | Live judge cases | 4 attempted / 4 completed / 100% expected outcome |
 | ERB conflict extraction | 20 questions attempted; 26/40 observations accepted; 14 rejected |
 | Fully promoted ERB conflict verdicts | 1 (`qst_0411`) |
+| Divergent ERB source-version groups | 1 group / 2 payload versions / 1 `VERSION_OF` edge |
 | Source-aware mappings | 5 accepted + 5 rejected alternatives |
 | HERB identity candidates | 1,645 same-name pairs |
 | Hard negative identity pairs blocked | 1,627 |
