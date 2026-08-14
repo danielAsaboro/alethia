@@ -4,6 +4,11 @@ import { generateText } from "ai";
 import { stableId } from "@/domain/ids";
 import type { Claim } from "@/domain/ontology";
 import type { GraphWriteBundle } from "@/hydra/client";
+import {
+  buildGroundingCandidates,
+  type ConflictExtractionObservation,
+  validateConflictSelection,
+} from "./conflict-extraction";
 import { validateQvacExtraction } from "./extraction";
 
 export interface QvacPredicate {
@@ -23,6 +28,34 @@ export interface QvacExtractionResult {
   claims: Claim[];
   evidenceQuotes: Record<string, string>;
   model: string;
+}
+
+export interface QvacConflictExtractionInput {
+  questionId: string;
+  question: string;
+  sourceObjectId: string;
+  sourceSystem: string;
+  sourceNativeId: string;
+  sourceTitle: string;
+  sourceText: string;
+  subjectHint: string;
+}
+
+export interface QvacConflictExtractionResult {
+  observation: ConflictExtractionObservation;
+  model: string;
+  promptVersion: "conflict-observation-v7";
+  responseText: string;
+}
+
+export class QvacConflictExtractionError extends Error {
+  constructor(
+    message: string,
+    readonly responseText: string,
+  ) {
+    super(message);
+    this.name = "QvacConflictExtractionError";
+  }
 }
 
 export function mapQvacClaimToGraph(
@@ -128,5 +161,72 @@ export class QvacClient {
       };
     });
     return { claims, evidenceQuotes, model: this.model };
+  }
+
+  async extractConflictObservation(
+    input: QvacConflictExtractionInput,
+  ): Promise<QvacConflictExtractionResult> {
+    const qvac = createQvac({
+      baseURL: this.baseUrl.replace(/\/$/, ""),
+      apiKey: process.env.QVAC_API_KEY ?? "local-loopback-only",
+    });
+    const promptVersion = "conflict-observation-v7" as const;
+    const candidates = buildGroundingCandidates({
+      question: input.question,
+      sourceText: input.sourceText,
+      limit: 12,
+    });
+    if (candidates.length === 0) {
+      throw new TypeError("Source has no eligible grounding candidates");
+    }
+    const { text: responseText } = await generateText({
+      model: qvac(this.model),
+      abortSignal: AbortSignal.timeout(120_000),
+      temperature: 0,
+      frequencyPenalty: 0.8,
+      maxOutputTokens: 100,
+      system:
+        'Select the one numbered source candidate that best answers the question. Return one minified JSON object only: {"candidateIndex":NUMBER,"value":"VALUE COPIED FROM THAT CANDIDATE","lifecycle":"ONE ALLOWED WORD"}. Use exactly those three keys once. The value must appear in the selected candidate. Do not quote the question, invent evidence, resolve conflicts, or add explanation.',
+      prompt: JSON.stringify({
+        promptVersion,
+        requiredPredicate: "conflict_answer",
+        questionId: input.questionId,
+        question: input.question,
+        source: {
+          sourceObjectId: input.sourceObjectId,
+          sourceSystem: input.sourceSystem,
+          sourceNativeId: input.sourceNativeId,
+          title: input.sourceTitle,
+        },
+        candidates,
+        allowedLifecycle: [
+          "proposal",
+          "approved",
+          "applied",
+          "deprecated",
+          "unknown",
+        ],
+      }),
+    });
+    try {
+      return {
+        observation: validateConflictSelection({
+          responseText,
+          candidates,
+          sourceText: input.sourceText,
+          question: input.question,
+          subject: input.subjectHint,
+          predicate: "conflict_answer",
+        }),
+        model: this.model,
+        promptVersion,
+        responseText,
+      };
+    } catch (error) {
+      throw new QvacConflictExtractionError(
+        error instanceof Error ? error.message : String(error),
+        responseText,
+      );
+    }
   }
 }
