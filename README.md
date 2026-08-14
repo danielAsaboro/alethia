@@ -148,7 +148,7 @@ Fresh local evidence from August 19, 2026:
 | Hard negative identity pairs blocked | 1,627 |
 | SourceTruce false merges on known hard negatives | 0 |
 | Full HERB graph | 12,378 nodes / 22,906 edges |
-| Unit tests | 123 passed + 2 integration-only tests skipped in the ordinary run |
+| Unit tests | 126 passed + 2 integration-only tests skipped in the ordinary run |
 | Explicit Hydra integration | 2/2 passed |
 
 The 20-question conflict run is intentionally reported as an attempt, not a benchmark score. The 0.6B local model rejected 14 observations and several accepted observations are not yet strong enough for automated adjudication. Only `qst_0411`, where both exact quotes and lifecycle states validate, is promoted into the judge UI. This is a quality limitation, not hidden missing data.
