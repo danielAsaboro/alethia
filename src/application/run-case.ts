@@ -54,7 +54,9 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       repository.findObservationEvidence(ids.conflictEntity),
       repository.findConflictDecision(ids.conflict),
     ]);
-    if (!decision?.winningClaimId || observations.length < 2) throw new Error("Conflict case is not ready in HydraDB");
+    if (!decision?.winningClaimId || !decision.policyId || observations.length < 2) {
+      throw new Error("Conflict case is not ready in HydraDB");
+    }
     const winner = observations.find((item) => item.claimLogicalId === decision.winningClaimId);
     if (!winner) throw new Error("Winning claim evidence is missing from HydraDB");
     return conflictWorkspace(judgeCase, observations, decision, winner);
@@ -67,13 +69,20 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     ]);
     const file = acceptedMapping(fileRows);
     const opportunity = acceptedMapping(opportunityRows);
+    if (
+      file.ontologyTermName === opportunity.ontologyTermName ||
+      file.ontologyTermName !== "FILE_OWNER" ||
+      opportunity.ontologyTermName !== "OPPORTUNITY_OWNER"
+    ) {
+      throw new Error("Alignment case is not ready in HydraDB");
+    }
     return {
       case: judgeCase,
       verdict: "SUPPORTED",
-      answer: "No. FILE_OWNER and OPPORTUNITY_OWNER are distinct ontology relations.",
+      answer: `No. ${file.ontologyTermName} and ${opportunity.ontologyTermName} are distinct ontology relations.`,
       evidence: [
-        { source: "Google Drive · document.owner", quote: `Accepted mapping → ${file.ontologyTermId}` },
-        { source: "HubSpot · opportunity.owner", quote: `Accepted mapping → ${opportunity.ontologyTermId}` },
+        { source: "Google Drive · document.owner", quote: `Accepted mapping → ${file.ontologyTermName} (${file.ontologyTermId})` },
+        { source: "HubSpot · opportunity.owner", quote: `Accepted mapping → ${opportunity.ontologyTermName} (${opportunity.ontologyTermId})` },
       ],
       decision: { status: "accepted", reason: "Exact source context plus compatible domain and range.", policy: "alignment-registry-v1" },
       coverage: { sufficient: true, detail: "Both source-schema observations were acquired from canonical ERB records." },
@@ -85,7 +94,15 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
 
   if (judgeCase.kind === "identity") {
     const decision = await repository.findIdentityDecision(ids.identityDecision);
-    if (!decision) throw new Error("Identity case is not ready in HydraDB");
+    if (
+      !decision ||
+      decision.status !== "rejected" ||
+      decision.sourceObjectIds.length !== 2 ||
+      !decision.signalKinds.includes("name_similarity") ||
+      !decision.constraintKinds.includes("employee_id_conflict")
+    ) {
+      throw new Error("Identity case is not ready in HydraDB");
+    }
     return identityWorkspace(judgeCase, decision);
   }
 

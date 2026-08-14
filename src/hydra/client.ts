@@ -141,6 +141,7 @@ export interface GraphAlignmentDecision {
   status: string;
   sourceTermId: string;
   ontologyTermId: string;
+  ontologyTermName: string;
   relationship: "MAPS_TO" | "REJECTED_MAPPING";
   reason: string;
 }
@@ -429,32 +430,36 @@ export class HydraRepository {
     const sourceTermId = hydraIntId(sourceTermLogicalId);
     const [acceptedRows, decisionRows] = await Promise.all([
       this.query(
-        "MATCH (s:SourceSchemaTerm {id: $sourceTermId})-[r:MAPS_TO]->(o:OntologyTerm) RETURN r.payload_json AS edgePayload, o.logical_id AS ontology",
+        "MATCH (s:SourceSchemaTerm {id: $sourceTermId})-[r:MAPS_TO]->(o:OntologyTerm) RETURN r.payload_json AS edgePayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
         { sourceTermId },
       ),
       this.query(
-        "MATCH (d:AlignmentDecision)-[r:REJECTED_MAPPING]->(o:OntologyTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, o.logical_id AS ontology",
+        "MATCH (d:AlignmentDecision)-[r:REJECTED_MAPPING]->(o:OntologyTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
       ),
     ]);
     const accepted = acceptedRows.map((row): GraphAlignmentDecision => {
       const edgePayload = JSON.parse(String(row.edgePayload)) as Record<string, unknown>;
+      const ontologyPayload = JSON.parse(String(row.ontologyPayload)) as Record<string, unknown>;
       return {
         decisionId: String(edgePayload.decisionId),
         status: "accepted",
         sourceTermId: sourceTermLogicalId,
         ontologyTermId: String(row.ontology),
+        ontologyTermName: String(ontologyPayload.name),
         relationship: "MAPS_TO",
         reason: "exact_registry_rule",
       };
     });
     const rejected = decisionRows.flatMap((row): GraphAlignmentDecision[] => {
       const payload = JSON.parse(String(row.decisionPayload)) as Record<string, unknown>;
+      const ontologyPayload = JSON.parse(String(row.ontologyPayload)) as Record<string, unknown>;
       if (payload.sourceTermId !== sourceTermLogicalId) return [];
       return [{
         decisionId: String(row.decision),
         status: String(payload.status),
         sourceTermId: sourceTermLogicalId,
         ontologyTermId: String(row.ontology),
+        ontologyTermName: String(ontologyPayload.name),
         relationship: "REJECTED_MAPPING",
         reason: String(payload.reason),
       }];

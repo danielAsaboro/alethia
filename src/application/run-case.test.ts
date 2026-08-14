@@ -30,4 +30,33 @@ describe("runJudgeCase", () => {
     missing.findConflictDecision = async () => null;
     await expect(runJudgeCase("streamly-credit-conflict", missing)).rejects.toThrow(/not ready/);
   });
+
+  it("derives source-aware mapping names from accepted Hydra decisions", async () => {
+    const aligned = repository();
+    aligned.findAlignmentDecisions = async (termId) => [{
+      decisionId: `decision_${termId}`,
+      status: "accepted",
+      sourceTermId: termId,
+      ontologyTermId: termId.includes("390378") ? "ontology_file_owner" : "ontology_opportunity_owner",
+      ontologyTermName: termId.includes("390378") ? "FILE_OWNER" : "OPPORTUNITY_OWNER",
+      relationship: "MAPS_TO",
+      reason: "exact_registry_rule",
+    }];
+
+    const workspace = await runJudgeCase("owner-is-not-owner", aligned);
+    expect(workspace.answer).toBe("No. FILE_OWNER and OPPORTUNITY_OWNER are distinct ontology relations.");
+  });
+
+  it("fails closed unless the identity rejection and hard blocker are present", async () => {
+    const unsafe = repository();
+    unsafe.findIdentityDecision = async () => ({
+      decisionId: "d",
+      status: "accepted",
+      sourceObjectIds: ["s1", "s2"],
+      signalKinds: ["name_similarity"],
+      constraintKinds: [],
+    });
+
+    await expect(runJudgeCase("david-taylor-collision", unsafe)).rejects.toThrow(/not ready/);
+  });
 });
