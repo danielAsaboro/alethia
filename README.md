@@ -73,6 +73,22 @@ npm run qvac:doctor
 npm run qvac:serve
 ```
 
+Clone the research datasets beside the project (not inside this Git repository), then set explicit local paths. HERB is research-only and CC BY-NC 4.0; review its dataset card before use.
+
+```bash
+git clone https://github.com/onyx-dot-app/EnterpriseRAG-Bench ../EnterpriseRAG-Bench
+git clone https://github.com/SalesforceAIResearch/HERB ../HERB
+
+export HERB_DIR="$(cd ../HERB && pwd)"
+export ERB_QUESTIONS="$(cd ../EnterpriseRAG-Bench && pwd)/questions.jsonl"
+export ERB_CONFLICTS_JSONL="$(pwd)/.local/evidence/erb-conflicts.jsonl"
+export ERB_CONFLICTS_MANIFEST="$(pwd)/.local/evidence/erb-conflicts.manifest.json"
+export ERB_ALIGNMENT_JSONL="$(pwd)/.local/evidence/erb-alignment.jsonl"
+export ERB_ALIGNMENT_MANIFEST="$(pwd)/.local/evidence/erb-alignment.manifest.json"
+export EVIDENCE_DIR="$(pwd)/.local/evidence/results"
+mkdir -p "$EVIDENCE_DIR"
+```
+
 Acquire the bounded canonical ERB conflict slice from Hugging Face. Evaluation labels select records during acquisition but are not emitted into runtime JSONL.
 
 ```bash
@@ -83,6 +99,16 @@ python3 -m venv .local/data-venv
   --questions "$ERB_QUESTIONS" \
   --output "$ERB_CONFLICTS_JSONL" \
   --manifest "$ERB_CONFLICTS_MANIFEST"
+```
+
+Acquire the alignment-discovery slice before running source-aware alignment:
+
+```bash
+.local/data-venv/bin/python scripts/fetch_erb_evidence.py \
+  --selection alignment-discovery \
+  --questions "$ERB_QUESTIONS" \
+  --output "$ERB_ALIGNMENT_JSONL" \
+  --manifest "$ERB_ALIGNMENT_MANIFEST"
 ```
 
 Populate the verified graph lanes:
