@@ -12,6 +12,10 @@ import type {
   VerdictDossier,
 } from "@/domain/ontology";
 import { groupAnswerValues } from "@/claims/group-answers";
+import {
+  explainVerdictChange,
+  type CounterfactualRequirement,
+} from "@/counterfactuals/explain-change";
 import { decideVerdict } from "@/verdicts/decide-verdict";
 
 export interface DossierInput {
@@ -22,6 +26,9 @@ export interface DossierInput {
   coverage: CoverageAssessment;
   identity: IdentityAssessment;
   sourceLabels: Record<string, string>;
+  applicablePolicyIds?: string[];
+  completedCoverageSliceIds?: string[];
+  unresolvedIdentityDecisionIds?: string[];
 }
 
 export interface EvidenceDossier {
@@ -33,6 +40,7 @@ export interface EvidenceDossier {
   evidence: Array<{ claim: Claim; sourceLabel: string }>;
   conflicts: EvidenceConflict[];
   coverage: CoverageAssessment;
+  counterfactuals: CounterfactualRequirement[];
 }
 
 export function buildDossier(input: DossierInput): EvidenceDossier {
@@ -70,5 +78,17 @@ export function buildDossier(input: DossierInput): EvidenceDossier {
     })),
     conflicts: input.conflicts,
     coverage: input.coverage,
+    counterfactuals: explainVerdictChange({
+      verdict: verdict.verdict,
+      controllingClaimIds: verdict.answerClaimIds,
+      unresolvedConflictIds: input.conflicts
+        .filter((conflict) => conflict.resolution === "unresolved")
+        .map((conflict) => conflict.id),
+      applicablePolicyIds: input.applicablePolicyIds ?? [],
+      missingCoverage: verdict.missingCoverage,
+      completedCoverageSliceIds: input.completedCoverageSliceIds,
+      unresolvedIdentityDecisionIds:
+        input.unresolvedIdentityDecisionIds ?? [],
+    }),
   };
 }

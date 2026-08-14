@@ -140,6 +140,13 @@ describe("buildDossier", () => {
     expect(buildDossier({ ...base, coverage: incomplete })).toMatchObject({
       verdict: "UNKNOWN",
       coverage: incomplete,
+      counterfactuals: [
+        expect.objectContaining({
+          kind: "coverage_slice_required",
+          sourceSystem: "herb",
+          predicateFamily: "role",
+        }),
+      ],
     });
   });
 });
