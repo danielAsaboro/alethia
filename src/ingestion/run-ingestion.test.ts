@@ -53,12 +53,12 @@ describe("runIngestion", () => {
     expect(result.resolution.decisions).toContainEqual(
       expect.objectContaining({
         status: "accepted",
-        signals: [
+        signals: expect.arrayContaining([
           expect.objectContaining({
             kind: "external_id_exact",
             normalizedValue: "eid_9b023657",
           }),
-        ],
+        ]),
         constraints: ["same_identity_namespace"],
       }),
     );

@@ -1,6 +1,7 @@
 import { stableId } from "@/domain/ids";
 import type { Claim } from "@/domain/ontology";
 import type { IngestionBundle } from "@/ingestion/source-adapter";
+import { identityKey } from "@/resolution/normalize-identity";
 import type {
   GraphEdge,
   GraphNode,
@@ -64,6 +65,25 @@ export function mapIngestionToGraph(
         fieldsJson: JSON.stringify(sourceObject.fields),
       },
     });
+    for (const identity of sourceObject.identities) {
+      const identityId = stableId("identity", { key: identityKey(identity) });
+      nodes.push({
+        logicalId: identityId,
+        label: "Identity",
+        properties: {
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+          sourceSystem: identity.sourceSystem,
+        },
+      });
+      edges.push(edge({
+        type: "HAS_IDENTITY",
+        sourceLabel: "SourceObject",
+        sourceLogicalId: sourceObject.id,
+        targetLabel: "Identity",
+        targetLogicalId: identityId,
+      }));
+    }
   }
 
   for (const entity of ingestion.resolution.entities) {
@@ -174,6 +194,38 @@ export function mapIngestionToGraph(
         constraintsJson: JSON.stringify(decision.constraints),
       },
     });
+    for (const [index, signal] of decision.signals.entries()) {
+      const signalId = stableId("resolution_signal", { decisionId: decision.id, index, signal });
+      nodes.push({
+        logicalId: signalId,
+        label: "ResolutionSignal",
+        properties: { kind: signal.kind, normalizedValue: signal.normalizedValue },
+      });
+      edges.push(edge({
+        type: "SUPPORTED_BY",
+        sourceLabel: "ResolutionDecision",
+        sourceLogicalId: decision.id,
+        targetLabel: "ResolutionSignal",
+        targetLogicalId: signalId,
+      }));
+    }
+    for (const constraint of decision.constraints.filter((value) =>
+      value.endsWith("_conflict") || value === "name_not_unique",
+    )) {
+      const constraintId = stableId("resolution_constraint", { decisionId: decision.id, constraint });
+      nodes.push({
+        logicalId: constraintId,
+        label: "ResolutionConstraint",
+        properties: { kind: constraint },
+      });
+      edges.push(edge({
+        type: "BLOCKED_BY",
+        sourceLabel: "ResolutionDecision",
+        sourceLogicalId: decision.id,
+        targetLabel: "ResolutionConstraint",
+        targetLogicalId: constraintId,
+      }));
+    }
     for (const sourceObjectId of decision.candidateSourceObjectIds) {
       edges.push(
         edge({
@@ -247,5 +299,8 @@ export function mapIngestionToGraph(
     }
   }
 
-  return { nodes, edges };
+  return {
+    nodes: [...new Map(nodes.map((node) => [`${node.label}:${node.logicalId}`, node])).values()],
+    edges: [...new Map(edges.map((item) => [item.logicalId, item])).values()],
+  };
 }

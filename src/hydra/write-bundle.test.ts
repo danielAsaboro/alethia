@@ -14,8 +14,8 @@ describe("mapIngestionToGraph", () => {
     );
     const graph = mapIngestionToGraph(ingestion);
 
-    expect(graph.nodes).toHaveLength(8177);
-    expect(graph.edges).toHaveLength(18220);
+    expect(graph.nodes).toHaveLength(12378);
+    expect(graph.edges).toHaveLength(22906);
     expect(
       graph.nodes.filter((node) => node.label === "ResolutionDecision"),
     ).toHaveLength(1645);
@@ -24,10 +24,16 @@ describe("mapIngestionToGraph", () => {
     ).toHaveLength(5130);
     expect(
       graph.edges.filter((edge) => edge.type === "SUPPORTED_BY"),
-    ).toHaveLength(5130);
+    ).toHaveLength(6793);
     expect(
       graph.edges.filter((edge) => edge.type === "CONSIDERS"),
     ).toHaveLength(3290);
+    expect(
+      graph.edges.filter((edge) => edge.type === "HAS_IDENTITY"),
+    ).toHaveLength(1396);
+    expect(
+      graph.edges.filter((edge) => edge.type === "BLOCKED_BY"),
+    ).toHaveLength(1627);
     expect(
       graph.edges.filter((edge) => edge.type === "HAS_TEAM_MEMBER"),
     ).toHaveLength(1370);
