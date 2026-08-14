@@ -40,7 +40,7 @@ export default function Home() {
           <p className="proof-label">Verified real-data system</p>
           <div className="proof-grid">
             <div><strong>9</strong><span>enterprise sources</span></div>
-            <div><strong>1,627</strong><span>false merges blocked</span></div>
+            <div><strong>1,627</strong><span>known hard negatives blocked</span></div>
             <div><strong>5</strong><span>contextual mappings</span></div>
             <div><strong>0</strong><span>cloud LLM calls</span></div>
           </div>
