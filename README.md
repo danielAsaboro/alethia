@@ -71,7 +71,7 @@ npm run hydra:up
 
 Fetch the pinned [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) `UD-Q4_K_XL` GGUF from [Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF). The fetch command resumes partial downloads and verifies the expected 17,559,178,144-byte file against SHA-256 `3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e` before QVAC can load it.
 
-Start QVAC in a second terminal. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `sourcetruce-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
+Start QVAC in a normal macOS Terminal session, not in Codex's terminal or from any process launched by Codex. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `sourcetruce-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
 
 ```bash
 npm run qvac:doctor
@@ -79,7 +79,7 @@ npm run qvac:model:fetch
 npm run qvac:serve
 ```
 
-Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. On the verified Apple Silicon host, the installed Bare prebuild returned `backend=cpu` even with a one-layer integrated-GPU diagnostic; only Command Line Tools were installed and `xcrun metal` was unavailable. CPU inference remains functional but slower. Metal acceleration requires full Xcode and, if the prebuild still cannot enumerate Metal, rebuilding [QVAC Fabric](https://github.com/tetherto/qvac-fabric-llm.cpp) with `GGML_METAL=ON`.
+Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. A one-layer diagnostic launched by Codex returned `metal: false`, no enumerated GPUs, and `backend=cpu`; this is not evidence that QVAC's Apple Silicon prebuild is broken. Codex's macOS Seatbelt sandbox can block the IOKit access Metal needs for device enumeration, including in `danger-full-access` mode ([Codex #17644](https://github.com/openai/codex/issues/17644), [Codex #9007](https://github.com/openai/codex/issues/9007)). Stop any Codex-launched QVAC server, launch `npm run qvac:serve` manually from Terminal, and confirm that request telemetry reports `backend=gpu`. If needed, diagnose first with `device: "gpu"`, `main-gpu: "integrated"`, `gpu_layers: 1`, `ctx_size: 512`, and `verbosity: 3`; then restore the checked-in `gpu_layers: 99` and `ctx_size: 4096` profile for the full-offload test. QVAC's official [macOS build requirements](https://github.com/tetherto/qvac/blob/main/packages/llm-llamacpp/build.md) list Xcode Command Line Tools and Apple Clang 15 or newer; full Xcode is not a prerequisite.
 
 Clone the research datasets beside the project (not inside this Git repository), then set explicit local paths. HERB is research-only and CC BY-NC 4.0; review its dataset card before use.
 
