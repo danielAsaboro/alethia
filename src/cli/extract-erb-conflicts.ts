@@ -10,6 +10,7 @@ import {
   QvacClient,
   QvacConflictExtractionError,
 } from "@/qvac/client";
+import { qvacRuntimeModel } from "@/qvac/model";
 
 interface ExtractErbConflictArgs {
   documents: string;
@@ -238,6 +239,7 @@ async function loadExistingCache(
 async function main(): Promise<void> {
   const options = parseExtractErbConflictArgs(process.argv.slice(2));
   const outputPath = path.resolve(options.output);
+  const runtimeModel = qvacRuntimeModel(model);
   const [runtimeCases, documents, cache] = await Promise.all([
     loadConflictCases(options.questions),
     loadDocuments(options.documents),
@@ -327,6 +329,13 @@ async function main(): Promise<void> {
       transport: "Vercel AI SDK over local QVAC HTTP",
       baseUrl: process.env.QVAC_BASE_URL ?? "http://127.0.0.1:11436/v1",
       model,
+      modelSource: runtimeModel.modelSource,
+      modelDownloadUrl: runtimeModel.downloadUrl,
+      modelSha256: runtimeModel.modelSha256,
+      modelExpectedBytes: runtimeModel.expectedBytes,
+      modelDisplayName: runtimeModel.displayName,
+      modelParameters: runtimeModel.parameters,
+      modelQuantization: runtimeModel.quantization,
       promptVersion,
     },
     input: {

@@ -3,10 +3,13 @@
   "serve": {
     "models": {
       "sourcetruce-extractor": {
-        "model": "QWEN3_600M_INST_Q4",
+        "src": ".local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf",
+        "type": "llamacpp-completion",
         "default": true,
         "preload": true,
         "config": {
+          "device": "gpu",
+          "gpu_layers": 99,
           "ctx_size": 4096,
           "reasoning_budget": 0,
           "tools": false

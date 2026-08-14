@@ -18,6 +18,7 @@
     "hydra:down": "docker compose down",
     "hydra:smoke": "tsx src/cli/hydra-smoke.ts",
     "qvac:doctor": "qvac doctor --json",
+    "qvac:model:fetch": "./scripts/fetch-qvac-model.sh",
     "qvac:serve": "./scripts/qvac-serve.sh",
     "qvac:smoke": "tsx src/cli/qvac-smoke.ts",
     "extract:erb-conflicts": "tsx src/cli/extract-erb-conflicts.ts",

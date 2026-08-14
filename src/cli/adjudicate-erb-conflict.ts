@@ -3,38 +3,17 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { buildDossier } from "@/application/build-dossier";
-import { consolidateClaims } from "@/claims/consolidate-claims";
 import {
-  adjudicateConflict,
-  type AdjudicationClaim,
-  type AdjudicationPolicy,
-} from "@/conflicts/adjudicate-conflict";
-import { classifyClaimPair } from "@/conflicts/classify-conflicts";
-import type { ClaimObservation } from "@/domain/evidence";
-import { stableId } from "@/domain/ids";
-import type { EvidenceConflict } from "@/domain/ontology";
+  isAcceptedConflictExtraction,
+  promoteAcceptedConflict,
+  type PromotedConflict,
+} from "@/conflicts/promote-erb-conflict";
 import { HydraRepository } from "@/hydra/client";
 import { mapEvidenceSystemToGraph } from "@/hydra/evidence-graph";
 
 interface AdjudicateErbConflictArgs {
   extractions: string;
   output: string;
-}
-
-interface AcceptedExtraction {
-  cacheKey: string;
-  status: "accepted";
-  sourceObjectId: string;
-  sourceNativeId: string;
-  sourceSystem: string;
-  sourceDigest: string;
-  observation: {
-    subject: string;
-    predicate: string;
-    value: string | number | boolean;
-    evidenceQuote: string;
-    lifecycle: AdjudicationClaim["lifecycle"];
-  };
 }
 
 const usage =
@@ -68,6 +47,29 @@ function repository(): HydraRepository {
   });
 }
 
+function graphForPromotion(promoted: Exclude<PromotedConflict, { status: "skipped" }>) {
+  return mapEvidenceSystemToGraph({
+    claims: promoted.claims,
+    observations: promoted.observations,
+    sources: promoted.accepted.map((extraction) => ({
+      id: extraction.sourceObjectId,
+      sourceSystem: extraction.sourceSystem,
+      sourceNativeId: extraction.sourceNativeId,
+      payloadDigest: extraction.sourceDigest,
+    })),
+    conflicts: [promoted.conflict],
+    policies: [
+      {
+        id: promoted.policy.id,
+        predicate: promoted.policy.predicate,
+        sourceSystem: "enterprise",
+        priority: 100,
+        rationale: "Grounded applied or approved state supersedes a proposal",
+      },
+    ],
+  });
+}
+
 async function main(): Promise<void> {
   const options = parseAdjudicateErbConflictArgs(process.argv.slice(2));
   const extractionArtifact = JSON.parse(
@@ -80,173 +82,91 @@ async function main(): Promise<void> {
       extractions: unknown[];
     }>;
   };
-  const realCase = extractionArtifact.cases.find(
-    (candidate) => candidate.questionId === "qst_0411",
-  );
-  if (!realCase) throw new Error("qst_0411 extraction case is missing");
-  const accepted = realCase.extractions.filter(
-    (extraction): extraction is AcceptedExtraction => {
-      if (
-        extraction === null ||
-        typeof extraction !== "object" ||
-        Array.isArray(extraction)
-      ) {
-        return false;
-      }
-      const row = extraction as Record<string, unknown>;
-      return row.status === "accepted" && row.observation !== undefined;
-    },
-  );
-  if (accepted.length !== 2) {
-    throw new Error(`qst_0411 requires two accepted observations, got ${accepted.length}`);
-  }
-
-  const subjectEntityId = stableId("entity", {
-    kind: "infrastructure_pool",
-    name: accepted[0].observation.subject,
-  });
-  const observations: ClaimObservation[] = accepted.map((extraction) => ({
-    id: stableId("observation", {
-      cacheKey: extraction.cacheKey,
-      promptVersion: "conflict-observation-v7",
+  const promotions = extractionArtifact.cases.map((item) =>
+    promoteAcceptedConflict({
+      questionId: item.questionId,
+      question: item.question,
+      accepted: item.extractions.filter(isAcceptedConflictExtraction),
     }),
-    claimCandidate: {
-      id: `candidate_${extraction.cacheKey}`,
-      subjectEntityId,
-      predicate: "conflict_answer",
-      object: { kind: "literal", value: extraction.observation.value },
-      sourceObjectId: extraction.sourceObjectId,
-      sourceSystem: extraction.sourceSystem,
-      extractionMethod: "qvac",
-      extractorVersion: "qvac:sourcetruce-extractor:v7",
-    },
-    evidenceQuote: extraction.observation.evidenceQuote,
-    method: "qvac",
-    extractorVersion: "qvac:sourcetruce-extractor:v7",
-  }));
-  const consolidated = consolidateClaims(observations);
-  const adjudicationClaims = accepted.map((extraction): AdjudicationClaim => {
-    const observation = consolidated.observations.find(
-      (candidate) =>
-        candidate.claimCandidate.sourceObjectId === extraction.sourceObjectId,
-    );
-    if (!observation) throw new Error("Consolidated observation is missing");
-    return {
-      claim: observation.claimCandidate,
-      lifecycle: extraction.observation.lifecycle,
-      lifecycleGrounded: true,
-    };
-  });
-  const applied = adjudicationClaims.find(
-    (candidate) => candidate.lifecycle === "applied",
   );
-  const proposal = adjudicationClaims.find(
-    (candidate) => candidate.lifecycle === "proposal",
+  const flagship = promotions.find(
+    (item) => item.status !== "skipped" && item.questionId === "qst_0411",
   );
-  if (!applied || !proposal) {
-    throw new Error("qst_0411 applied/proposal lifecycle pair is missing");
+  if (!flagship || flagship.status === "skipped") {
+    throw new Error("qst_0411 extraction case is missing");
   }
-  const classification = classifyClaimPair(applied.claim, proposal.claim);
-  if (classification.kind !== "contradiction") {
-    throw new Error(`Expected contradiction, got ${classification.kind}`);
+  if (flagship.status !== "resolved" || flagship.winningValue !== "30%") {
+    throw new Error("qst_0411 did not resolve to the applied 30% claim");
   }
-  const conflictId = stableId("conflict", {
-    questionId: realCase.questionId,
-    leftClaimId: applied.claim.id,
-    rightClaimId: proposal.claim.id,
-  });
-  const policy: AdjudicationPolicy = {
-    id: "policy_lifecycle_precedence_v1",
-    kind: "lifecycle_precedence",
-    predicate: "conflict_answer",
-    order: ["deprecated", "proposal", "approved", "applied"],
-  };
-  const adjudication = adjudicateConflict(
-    { id: conflictId, left: applied, right: proposal },
-    [policy],
-  );
-  if (
-    adjudication.status !== "resolved" ||
-    adjudication.winningClaimId !== applied.claim.id
-  ) {
-    throw new Error("qst_0411 did not resolve to the applied claim");
-  }
-  const conflict: EvidenceConflict = {
-    id: conflictId,
-    leftClaimId: applied.claim.id,
-    rightClaimId: proposal.claim.id,
-    resolution: "left",
-    policyId: policy.id,
-  };
-  const graph = mapEvidenceSystemToGraph({
-    claims: consolidated.claims,
-    observations: consolidated.observations,
-    sources: accepted.map((extraction) => ({
-      id: extraction.sourceObjectId,
-      sourceSystem: extraction.sourceSystem,
-      sourceNativeId: extraction.sourceNativeId,
-      payloadDigest: extraction.sourceDigest,
-    })),
-    conflicts: [conflict],
-    policies: [
-      {
-        id: policy.id,
-        predicate: policy.predicate,
-        sourceSystem: "enterprise",
-        priority: 100,
-        rationale: "Grounded applied state supersedes a grounded proposal",
-      },
-    ],
-  });
   const hydra = repository();
   try {
-    await hydra.writeGraph(graph);
-    await hydra.writeGraph(graph);
-    const [presence, observationEvidence, conflictDecision] = await Promise.all([
-      hydra.getPresence(graph),
-      hydra.findObservationEvidence(subjectEntityId),
-      hydra.findConflictDecision(conflictId),
-    ]);
-    if (
-      presence.nodes !== graph.nodes.length ||
-      presence.edges !== graph.edges.length ||
-      observationEvidence.length !== 2 ||
-      conflictDecision?.policyId !== policy.id
-    ) {
-      throw new Error("qst_0411 HydraDB round trip is incomplete");
+    const written = [];
+    for (const promoted of promotions) {
+      if (promoted.status === "skipped") continue;
+      const graph = graphForPromotion(promoted);
+      await hydra.writeGraph(graph);
+      await hydra.writeGraph(graph);
+      const [presence, observationEvidence, conflictDecision] = await Promise.all([
+        hydra.getPresence(graph),
+        hydra.findObservationEvidence(promoted.subjectEntityId),
+        hydra.findConflictDecision(promoted.conflict.id),
+      ]);
+      if (
+        presence.nodes !== graph.nodes.length ||
+        presence.edges !== graph.edges.length ||
+        observationEvidence.length < 2 ||
+        !conflictDecision
+      ) {
+        throw new Error(`${promoted.questionId} HydraDB round trip is incomplete`);
+      }
+      if (promoted.status === "resolved" && conflictDecision.policyId !== promoted.policy.id) {
+        throw new Error(`${promoted.questionId} is missing the lifecycle policy path`);
+      }
+      written.push({
+        questionId: promoted.questionId,
+        status: promoted.status,
+        entityId: promoted.subjectEntityId,
+        conflictId: promoted.conflict.id,
+        winningValue: promoted.winningValue ?? null,
+        presence,
+      });
     }
     const sourceLabels = Object.fromEntries(
-      accepted.map((extraction) => [
+      flagship.accepted.map((extraction) => [
         extraction.sourceObjectId,
         `${extraction.sourceSystem} · ${extraction.sourceNativeId}`,
       ]),
     );
     const dossier = buildDossier({
-      question: realCase.question,
-      claims: consolidated.claims,
-      observations: consolidated.observations,
-      conflicts: [conflict],
+      question: flagship.question,
+      claims: flagship.claims,
+      observations: flagship.observations,
+      conflicts: [flagship.conflict],
       coverage: { sufficient: true, missing: [] },
-      identity: { status: "resolved", entityId: subjectEntityId },
+      identity: { status: "resolved", entityId: flagship.subjectEntityId },
       sourceLabels,
-      applicablePolicyIds: [policy.id],
+      applicablePolicyIds: [flagship.policy.id],
     });
     const artifact = {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
-      caseId: realCase.questionId,
+      caseId: flagship.questionId,
       extractionRuntime: extractionArtifact.runtime,
-      classification,
-      adjudication,
       dossier,
+      promotions: promotions.map((item) =>
+        item.status === "skipped"
+          ? { questionId: item.questionId, status: item.status, reason: item.reason }
+          : {
+              questionId: item.questionId,
+              status: item.status,
+              entityId: item.subjectEntityId,
+              conflictId: item.conflict.id,
+              winningValue: item.winningValue ?? null,
+            },
+      ),
       hydra: {
         implementation: "HydraDB OSS 0.1.0",
-        traversal:
-          "Entity->ASSERTS->Claim->HAS_OBSERVATION->ExtractionObservation->SUPPORTED_BY->SourceObject; Conflict->DECIDED_BY->AuthorityPolicy",
-        idempotentWriteCount: 2,
-        presence,
-        observationEvidence,
-        conflictDecision,
+        written,
       },
     };
     const outputPath = path.resolve(options.output);
@@ -256,11 +176,9 @@ async function main(): Promise<void> {
       JSON.stringify({
         outputPath,
         verdict: dossier.verdict,
-        answer: dossier.answerGroups.map((group) => group.valueLabel),
-        losingClaimIds: adjudication.losingClaimIds,
-        policyId: adjudication.policyId,
-        hydraPresence: presence,
-        observationPaths: observationEvidence.length,
+        promoted: written.length,
+        unresolved: written.filter((item) => item.status === "unresolved").length,
+        hydraPresence: written[0]?.presence,
       }),
     );
   } finally {

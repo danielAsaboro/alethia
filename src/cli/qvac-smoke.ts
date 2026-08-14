@@ -6,6 +6,7 @@ import { HydraRepository } from "@/hydra/client";
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
 import { mapQvacClaimToGraph, QvacClient } from "@/qvac/client";
+import { qvacRuntimeModel } from "@/qvac/model";
 
 interface QvacSmokeArgs {
   input: string;
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
     ],
   });
   const latencyMs = Number((performance.now() - start).toFixed(3));
+  const runtimeModel = qvacRuntimeModel(result.model);
   const roleClaim = result.claims.find(
     (claim) =>
       claim.predicate === "has_role" &&
@@ -122,7 +124,13 @@ async function main(): Promise<void> {
         transport: "QVAC Vercel AI SDK provider over local loopback HTTP",
         baseUrl: process.env.QVAC_BASE_URL ?? "http://127.0.0.1:11436/v1",
         model: result.model,
-        modelConstant: "QWEN3_600M_INST_Q4",
+        modelSource: runtimeModel.modelSource,
+        modelDownloadUrl: runtimeModel.downloadUrl,
+        modelSha256: runtimeModel.modelSha256,
+        modelExpectedBytes: runtimeModel.expectedBytes,
+        modelDisplayName: runtimeModel.displayName,
+        modelParameters: runtimeModel.parameters,
+        modelQuantization: runtimeModel.quantization,
       },
       source: {
         dataset: "Salesforce HERB",

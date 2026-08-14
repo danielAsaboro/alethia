@@ -183,7 +183,6 @@ export class QvacClient {
       model: qvac(this.model),
       abortSignal: AbortSignal.timeout(120_000),
       temperature: 0,
-      frequencyPenalty: 0.8,
       maxOutputTokens: 100,
       system:
         'Select the one numbered source candidate that best answers the question. Return one minified JSON object only: {"candidateIndex":NUMBER,"value":"VALUE COPIED FROM THAT CANDIDATE","lifecycle":"ONE ALLOWED WORD"}. Use exactly those three keys once. The value must appear in the selected candidate. Do not quote the question, invent evidence, resolve conflicts, or add explanation.',

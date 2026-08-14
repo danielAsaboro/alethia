@@ -9,6 +9,8 @@
 
 - [HydraDB](https://github.com/hydra-db/hydradb), used as the ontology store and graph traversal engine. The container image is pinned by digest in `docker-compose.yml`.
 - [QVAC](https://github.com/tetherto/qvac), used locally through `@qvac/cli` and the official `@qvac/ai-sdk-provider` package.
+- [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B), Apache-2.0, used as the local extraction model.
+- [Unsloth Qwen3.8-27B GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF), Apache-2.0, used for the pinned `UD-Q4_K_XL` quantization loaded by QVAC.
 - [Vercel AI SDK](https://sdk.vercel.ai/), used as the model-provider interface.
 - [Next.js](https://nextjs.org/) and [React](https://react.dev/), used for the judge-facing web application.
 - [Zod](https://zod.dev/), used for strict runtime validation.

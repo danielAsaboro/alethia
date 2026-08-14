@@ -112,9 +112,15 @@ button:disabled { cursor: wait; opacity: .65; transform: none; }
 .member-list strong { font-size: .82rem; }
 .member-list span { color: var(--muted); font-family: monospace; font-size: .65rem; margin-top: .25rem; }
 
-.court-hero h1 { font-size: clamp(3rem, 6.3vw, 6.6rem); max-width: 14ch; }
-.court-layout { display: grid; grid-template-columns: .72fr 1.28fr; margin-top: 1rem; }
-.case-panel, .evidence-court { background: rgba(251,250,245,.94); border: 1px solid var(--ink); min-height: 48rem; padding: 1.5rem; }
+.court-hero { align-items: end; gap: 1.5rem; padding: 1.6rem 0 1.1rem; }
+.court-hero h1 { font-size: clamp(2.1rem, 4.2vw, 3.8rem); line-height: .9; max-width: 14ch; }
+.court-hero .lede { font-size: .95rem; margin-top: .85rem; max-width: 52ch; }
+.court-hero .proof-card { padding: 1rem 1.15rem; }
+.court-hero .proof-grid { margin: .85rem 0; }
+.court-hero .proof-grid div { padding: .7rem; }
+.court-hero .proof-grid strong { font-size: 1.35rem; }
+.court-layout { display: grid; grid-template-columns: .72fr 1.28fr; margin-top: 0; }
+.case-panel, .evidence-court { background: rgba(251,250,245,.94); border: 1px solid var(--ink); min-height: 34rem; padding: 1.15rem 1.35rem; }
 .evidence-court { border-left: 0; }
 .case-list { display: grid; gap: .75rem; }
 .case-card { align-items: flex-start; background: white; border: 1px solid #aeb7b2; color: var(--ink); display: grid; gap: .85rem; grid-template-columns: auto 1fr auto; padding: 1rem; text-align: left; text-transform: none; }
@@ -128,7 +134,7 @@ button:disabled { cursor: wait; opacity: .65; transform: none; }
 .case-card.selected small { color: #c7cfca; }
 .case-copy em { color: var(--blue); font-size: .58rem; font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
 .case-card.selected em { color: var(--acid); }
-.court-empty { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 34rem; text-align: center; }
+.court-empty { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 22rem; text-align: center; }
 .court-empty h3 { font-size: 1.5rem; line-height: 1.25; max-width: 25ch; }
 .court-empty p { color: var(--muted); font-size: .8rem; }
 .result-head { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }

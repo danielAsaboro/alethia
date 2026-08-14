@@ -56,6 +56,9 @@ HydraDB stores the ontology and performs the decisive traversals. Removing it lo
 - npm
 - Docker with Compose
 - Python 3 for canonical ERB acquisition
+- 36 GB unified/system memory recommended for the local 27B model
+- a QVAC-compatible GPU backend (the checked-in profile uses Metal on Apple Silicon)
+- 20 GB free disk space for the pinned Qwen3.8 GGUF and runtime cache
 - local checkouts or acquired slices of HERB and ERB outside this repository
 
 Install dependencies and start HydraDB:
@@ -66,12 +69,17 @@ cp .env.example .env.local
 npm run hydra:up
 ```
 
-Start QVAC in a second terminal. The server binds to `127.0.0.1:11436` and exposes the `sourcetruce-extractor` model through `@qvac/ai-sdk-provider` and AI SDK 7.
+Fetch the pinned [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) `UD-Q4_K_XL` GGUF from [Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF). The fetch command resumes partial downloads and verifies the expected 17,559,178,144-byte file against SHA-256 `3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e` before QVAC can load it.
+
+Start QVAC in a second terminal. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `sourcetruce-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
 
 ```bash
 npm run qvac:doctor
+npm run qvac:model:fetch
 npm run qvac:serve
 ```
+
+Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. On the verified Apple Silicon host, the installed Bare prebuild returned `backend=cpu` even with a one-layer integrated-GPU diagnostic; only Command Line Tools were installed and `xcrun metal` was unavailable. CPU inference remains functional but slower. Metal acceleration requires full Xcode and, if the prebuild still cannot enumerate Metal, rebuilding [QVAC Fabric](https://github.com/tetherto/qvac-fabric-llm.cpp) with `GGML_METAL=ON`.
 
 Clone the research datasets beside the project (not inside this Git repository), then set explicit local paths. HERB is research-only and CC BY-NC 4.0; review its dataset card before use.
 
@@ -155,7 +163,7 @@ npm run dev
 | `HYDRA_NAMESPACE` | `default` | Graph namespace |
 | `HYDRA_CELL_ID` | `cell-0` | HydraDB cell |
 | `QVAC_BASE_URL` | `http://127.0.0.1:11436/v1` | Local OpenAI-compatible QVAC endpoint |
-| `QVAC_MODEL` | `sourcetruce-extractor` | QVAC registry alias |
+| `QVAC_MODEL` | `sourcetruce-extractor` | QVAC alias backed by the verified local Qwen3.8 27B GGUF |
 
 HydraDB OSS 0.1.0 is pinned by image digest in `docker-compose.yml`. Compose binds HydraDB ports to loopback only.
 
@@ -165,19 +173,19 @@ Fresh local evidence from August 19, 2026:
 
 | Lane | Result |
 | --- | ---: |
-| Live judge cases | 4 attempted / 4 completed / 100% expected outcome |
-| ERB conflict extraction | 20 questions attempted; 26/40 observations accepted; 14 rejected |
-| Fully promoted ERB conflict verdicts | 1 (`qst_0411`) |
+| Live judge cases | 5 attempted / 5 completed / 100% expected outcome |
+| Qwen3.8 ERB conflict extraction | 20 questions attempted; 39/40 observations accepted; 1 rejected |
+| Promoted ERB conflict graphs | 19 (6 resolved by lifecycle policy, 13 left `DISPUTED`) |
 | Divergent ERB source-version groups | 1 group / 2 payload versions / 1 `VERSION_OF` edge |
 | Source-aware mappings | 5 accepted + 5 rejected alternatives |
 | HERB identity candidates | 1,645 same-name pairs |
 | Hard negative identity pairs blocked | 1,627 |
 | SourceTruce false merges on known hard negatives | 0 |
 | Full HERB graph | 12,378 nodes / 22,906 edges |
-| Unit tests | 128 passed + 2 integration-only tests skipped in the ordinary run |
+| Unit tests | 146 passed + 2 integration-only tests skipped in the ordinary run |
 | Explicit Hydra integration | 2/2 passed |
 
-The 20-question conflict run is intentionally reported as an attempt, not a benchmark score. The 0.6B local model rejected 14 observations and several accepted observations are not yet strong enough for automated adjudication. Only `qst_0411`, where both exact quotes and lifecycle states validate, is promoted into the judge UI. This is a quality limitation, not hidden missing data.
+The 20-question conflict run is reported as an attempt, not a benchmark score. Qwen3.8 produced 39 strictly grounded observations; one `qst_0412` response was rejected because it hit the output bound with invalid JSON. Nineteen contradiction pairs persist in HydraDB. Six resolve only where lifecycle evidence supports both sides; thirteen, including handshake TTL `qst_0421`, stay `DISPUTED` when the policy cannot compare both claims safely.
 
 Run the focused live evaluation:
 

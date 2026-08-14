@@ -1,3 +1,5 @@
+import { createHash, randomUUID } from "node:crypto";
+
 import { hydraIntId } from "./hydra-id";
 import type { CoverageSlice } from "@/domain/ontology";
 
@@ -132,6 +134,8 @@ export interface GraphConflictDecision {
   conflictId: string;
   resolution: string;
   claimIds: string[];
+  leftClaimId?: string;
+  rightClaimId?: string;
   policyId?: string;
   winningClaimId?: string;
 }
@@ -184,6 +188,26 @@ export function chunkRows<T>(rows: T[], size = 500): T[][] {
   return chunks;
 }
 
+export function hydraQueryId(
+  cypher: string,
+  parameters: Record<string, unknown>,
+): string {
+  const digest = createHash("sha256")
+    .update(JSON.stringify({ cypher, parameters }))
+    .digest("hex")
+    .slice(0, 32);
+  return `sourcetruce-${digest}`;
+}
+
+export function hydraRequestQueryId(
+  cypher: string,
+  parameters: Record<string, unknown>,
+): string {
+  return /^\s*UNWIND\b/i.test(cypher)
+    ? hydraQueryId(cypher, parameters)
+    : `sourcetruce-read-${randomUUID()}`;
+}
+
 export class HydraRepository {
   private readonly queryUrl: string;
 
@@ -206,6 +230,7 @@ export class HydraRepository {
       },
       body: JSON.stringify({
         cell_id: this.config.cellId,
+        query_id: hydraRequestQueryId(cypher, parameters),
         query: cypher,
         parameters,
       }),
@@ -413,10 +438,19 @@ export class HydraRepository {
       const edgePayload = JSON.parse(String(row.edgePayload ?? "{}")) as Record<string, unknown>;
       return edgePayload.side === resolution;
     });
+    const claimForSide = (side: "left" | "right") => {
+      const row = claimRows.find((candidate) => {
+        const edgePayload = JSON.parse(String(candidate.edgePayload ?? "{}")) as Record<string, unknown>;
+        return edgePayload.side === side;
+      });
+      return row ? String(row.claim) : undefined;
+    };
     return {
       conflictId: String(claimRows[0].conflict),
       resolution,
       claimIds: [...new Set(claimRows.map((row) => String(row.claim)))].sort(),
+      leftClaimId: claimForSide("left"),
+      rightClaimId: claimForSide("right"),
       policyId: policyRows[0]?.policy
         ? String(policyRows[0].policy)
         : undefined,

@@ -21,6 +21,15 @@ const cases: JudgeCase[] = [
     version: "qst_0411-v1",
   },
   {
+    id: "handshake-ttl-conflict",
+    kind: "conflict",
+    title: "Leave a conflict open",
+    question: "Default TTL for the cross-account GPU warm-pool handoff handshake token?",
+    summary: "One source says the default is now 120 seconds. Another still says 180 without lifecycle metadata, so the policy refuses one-sided precedence.",
+    dataset: "Enterprise RAG Bench",
+    version: "qst_0421-v1",
+  },
+  {
     id: "owner-is-not-owner",
     kind: "alignment",
     title: "Disambiguate “owner”",

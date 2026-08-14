@@ -207,16 +207,11 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
   });
 
   it("round-trips the real qst_0411 observation and decision paths", async () => {
-    const evidencePaths = [
-      path.resolve(
-        process.cwd(),
-        "../submission/evidence/qvac/erb-conflicts.json",
-      ),
-      path.resolve(
-        process.cwd(),
-        "../../../submission/evidence/qvac/erb-conflicts.json",
-      ),
-    ];
+    const configuredEvidencePath = process.env.ERB_CONFLICT_EXTRACTIONS;
+    if (!configuredEvidencePath) {
+      throw new Error("ERB_CONFLICT_EXTRACTIONS must point to a real extraction artifact");
+    }
+    const evidencePath = path.resolve(configuredEvidencePath);
     type RealExtraction = {
       cacheKey: string;
       status: string;
@@ -230,26 +225,12 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         lifecycle: string;
       };
     };
-    let artifact: {
+    const artifact = JSON.parse(await readFile(evidencePath, "utf8")) as {
       cases: Array<{
         questionId: string;
         extractions: RealExtraction[];
       }>;
-    } | undefined;
-    for (const evidencePath of evidencePaths) {
-      try {
-        artifact = JSON.parse(await readFile(evidencePath, "utf8")) as {
-          cases: Array<{
-            questionId: string;
-            extractions: RealExtraction[];
-          }>;
-        };
-        break;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      }
-    }
-    if (!artifact) throw new Error("Real qst_0411 QVAC evidence is missing");
+    };
     const realCase = artifact.cases.find(
       (candidate) => candidate.questionId === "qst_0411",
     );
