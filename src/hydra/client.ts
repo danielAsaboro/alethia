@@ -124,6 +124,7 @@ export interface GraphConflictDecision {
   resolution: string;
   claimIds: string[];
   policyId?: string;
+  winningClaimId?: string;
 }
 
 export interface GraphAlignmentDecision {
@@ -384,7 +385,7 @@ export class HydraRepository {
     const conflictId = hydraIntId(conflictLogicalId);
     const [claimRows, policyRows] = await Promise.all([
       this.query(
-        "MATCH (f:Conflict {id: $conflictId})-[:CONSIDERS]->(c:Claim) RETURN f.logical_id AS conflict, f.payload_json AS conflictPayload, c.logical_id AS claim",
+        "MATCH (f:Conflict {id: $conflictId})-[r:CONSIDERS]->(c:Claim) RETURN f.logical_id AS conflict, f.payload_json AS conflictPayload, c.logical_id AS claim, r.payload_json AS edgePayload",
         { conflictId },
       ),
       this.query(
@@ -397,13 +398,19 @@ export class HydraRepository {
       string,
       unknown
     >;
+    const resolution = String(payload.resolution ?? "unresolved");
+    const winningRow = claimRows.find((row) => {
+      const edgePayload = JSON.parse(String(row.edgePayload ?? "{}")) as Record<string, unknown>;
+      return edgePayload.side === resolution;
+    });
     return {
       conflictId: String(claimRows[0].conflict),
-      resolution: String(payload.resolution ?? "unresolved"),
+      resolution,
       claimIds: [...new Set(claimRows.map((row) => String(row.claim)))].sort(),
       policyId: policyRows[0]?.policy
         ? String(policyRows[0].policy)
         : undefined,
+      winningClaimId: winningRow ? String(winningRow.claim) : undefined,
     };
   }
 
