@@ -1,114 +1,161 @@
 # SourceTruce
 
-SourceTruce is an enterprise evidence court built for Hack Hydra Track 01. It converts heterogeneous records into a claim-level ontology in HydraDB, resolves duplicate identities through inspectable decisions, and returns one of four verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
+SourceTruce is an enterprise evidence court for Hack Hydra Track 01. It turns contradictory records into a claim-level ontology in HydraDB, records why identities and source fields do—or do not—align, and issues one of four verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
 
-The distinction between the last two is the product: SourceTruce only says `NOT_FOUND` when a recorded coverage slice proves that the relevant source, object type, predicate family, and content scope were examined. Otherwise it abstains with `UNKNOWN` and names the missing coverage.
+The one-click demo uses real [Enterprise RAG Bench](https://github.com/onyx-dot-app/EnterpriseRAG-Bench) and [Salesforce HERB](https://huggingface.co/datasets/Salesforce/HERB) records. Enterprise text stays local: QVAC is called through its official Vercel AI SDK provider on loopback. QVAC proposes grounded observations; deterministic policy and HydraDB paths decide the result.
 
-No LLM is required for the structural pipeline. Ingestion, identity resolution, structural claim extraction, coverage checks, HydraDB persistence, and verdict selection are deterministic. QVAC is integrated only at the optional unstructured extraction boundary; its output cannot bypass provenance, exact-quote grounding, coverage, or conflict policy.
+## What makes it different
 
-## What works now
+Conventional RAG retrieves passages and asks a model to reconcile them inside a prompt. SourceTruce makes the reconciliation inspectable graph data:
 
-- real HERB ingestion: 698 records across employees, customers, team structures, and products;
-- deterministic, reversible entity resolution with accepted and rejected merge certificates;
-- 5,130 claim-level facts with source-object provenance and zero extraction gaps on the structural slice;
-- a real, idempotent write/read round trip against HydraDB OSS 0.1.0;
-- graph-native evidence traversal from canonical entity to claim to source object;
-- a live four-node traversal from ActionGenie to 66 canonical team members and their source records;
-- coverage-qualified negative answers and explicit abstention;
-- a local judge-facing web app with loading, empty, error, evidence, and knowledge-boundary states;
-- repeatable metrics for verdicts, evidence retrieval, identity resolution, latency, and ablations.
-- a real local QVAC inference path with schema, predicate-allowlist, and exact-source-quote validation.
+- multiple extraction observations consolidate into one semantic claim without duplicating the answer;
+- losing claims remain queryable after conflict resolution;
+- `owner` in Google Drive, HubSpot, and Fireflies maps through source context and domain/range constraints—not field-name similarity;
+- names never auto-merge by fuzziness alone; verified identity conflicts are hard blockers;
+- `NOT_FOUND` requires a completed coverage slice; missing coverage yields `UNKNOWN`;
+- each verdict states what new evidence or decision would change it.
+
+## Four live judge cases
+
+| Case | Real-data proof | Result |
+| --- | --- | --- |
+| Resolve a conflict | ERB Jira proposal says 20%; applied Drive policy says 30% | `SUPPORTED` → 30%, with both exact quotes retained |
+| Disambiguate “owner” | ERB Drive and HubSpot source-schema observations | `FILE_OWNER` and `OPPORTUNITY_OWNER`, not generic `OWNS` |
+| Decide who this person is | HERB contains two David Taylor records with different employee IDs | Keep separate; the hard constraint blocks the fuzzy match |
+| Admit uncertainty | HERB has no completed `favorite_lunch` coverage | `UNKNOWN`, not a fabricated answer or false `NOT_FOUND` |
+
+Every successful case is assembled from live HydraDB queries. API failures return HTTP 503; there is no evidence-file or in-memory success fallback.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  A["HERB source records"] --> B["Typed source adapter"]
-  B --> C["Canonical source objects"]
-  C --> D["Entity resolver"]
-  D --> E["Merge decisions + canonical entities"]
-  E --> F["Deterministic claim extractor"]
-  F --> G["Claims + evidence + coverage slices"]
-  G --> H["HydraDB ontology"]
-  H --> I["Graph evidence traversal"]
-  I --> J["Coverage and conflict gates"]
-  J --> K["Decision dossier"]
+  A[Canonical ERB / HERB records] --> B[Typed adapters]
+  B --> C[Source objects + coverage]
+  C --> D[QVAC or deterministic observations]
+  D --> E[Canonical claims]
+  C --> F[Identity candidates]
+  C --> G[Source-schema terms]
+  E --> H[Conflicts + authority decisions]
+  F --> I[Accepted / rejected / pending identity decisions]
+  G --> J[Accepted / rejected ontology mappings]
+  H --> K[HydraDB evidence graph]
+  I --> K
+  J --> K
+  K --> L[Verdict + evidence + coverage + counterfactual]
 ```
 
-HydraDB stores `Entity`, `SourceObject`, `Claim`, `CoverageSlice`, `IngestionRun`, and `ResolutionDecision` nodes. Relationships include `ASSERTS`, `SUPPORTED_BY`, `RESOLVES_TO`, `COVERS`, `OBSERVED_IN`, `CONSIDERS`, `MEMBER_OF`, `MANAGES`, `HAS_TEAM_MEMBER`, and `SERVES_CUSTOMER`. See [docs/ontology.md](docs/ontology.md) for the graph contract.
+HydraDB stores the ontology and performs the decisive traversals. Removing it loses claim-to-observation provenance, competing claims, policy decisions, rejected mappings, identity blockers, and coverage boundaries. See [the ontology reference](docs/ontology.md).
 
-### Why HydraDB is core
+## How to run the evidence court
 
-The answer path is a graph traversal, not a vector-search citation pasted onto generated prose:
+### Requirements
 
-```text
-(Entity)-[:ASSERTS]->(Claim)-[:SUPPORTED_BY]->(SourceObject)
-```
-
-Coverage and resolution decisions are also graph objects. Removing HydraDB loses the auditable relationship between a canonical identity, its claim, its original record, the ingestion run that examined it, and the decision that merged it. The API intentionally returns HTTP 503 when HydraDB is unavailable; there is no in-memory success fallback.
-
-## Reproduce it
-
-Requirements:
-
-- Node.js 20+
+- Node.js 20 or newer
 - npm
 - Docker with Compose
-- the Salesforce HERB dataset checked out outside this repository
+- Python 3 for canonical ERB acquisition
+- local checkouts or acquired slices of HERB and ERB outside this repository
+
+Install dependencies and start HydraDB:
 
 ```bash
-git clone https://huggingface.co/datasets/Salesforce/HERB ../resources/HERB
 npm install
+cp .env.example .env.local
 npm run hydra:up
-npm run hydra:smoke -- \
-  --input ../resources/HERB \
-  --evidence ../submission/evidence/hydradb-roundtrip/herb-structural.json
+```
+
+Start QVAC in a second terminal. The server binds to `127.0.0.1:11436` and exposes the `sourcetruce-extractor` model through `@qvac/ai-sdk-provider` and AI SDK 7.
+
+```bash
+npm run qvac:doctor
+npm run qvac:serve
+```
+
+Acquire the bounded canonical ERB conflict slice from Hugging Face. Evaluation labels select records during acquisition but are not emitted into runtime JSONL.
+
+```bash
+python3 -m venv .local/data-venv
+.local/data-venv/bin/pip install -r requirements-data.txt
+.local/data-venv/bin/python scripts/fetch_erb_evidence.py \
+  --selection conflicts \
+  --questions "$ERB_QUESTIONS" \
+  --output "$ERB_CONFLICTS_JSONL" \
+  --manifest "$ERB_CONFLICTS_MANIFEST"
+```
+
+Populate the verified graph lanes:
+
+```bash
+npm run hydra:smoke -- --input "$HERB_DIR" --evidence "$EVIDENCE_DIR/herb-structural.json"
+npm run extract:erb-conflicts -- \
+  --documents "$ERB_CONFLICTS_JSONL" \
+  --questions "$ERB_QUESTIONS" \
+  --output "$EVIDENCE_DIR/erb-conflicts.json" \
+  --limit 20
+npm run adjudicate:erb-conflict -- \
+  --extractions "$EVIDENCE_DIR/erb-conflicts.json" \
+  --output "$EVIDENCE_DIR/qst_0411.json"
+npm run audit:herb-identities -- --input "$HERB_DIR" --output "$EVIDENCE_DIR/herb-identities.json"
+```
+
+The source-aware alignment command additionally requires an `alignment-discovery` acquisition manifest:
+
+```bash
+npm run discover:erb-alignment -- \
+  --input "$ERB_ALIGNMENT_JSONL" \
+  --manifest "$ERB_ALIGNMENT_MANIFEST" \
+  --output "$EVIDENCE_DIR/erb-alignment.json"
+```
+
+Start the app and open [http://localhost:3000](http://localhost:3000):
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The interface starts with a verified HERB entity and role query so the first click produces a real evidence path.
+## Configuration reference
 
-HydraDB is pinned by digest in `docker-compose.yml`:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HYDRA_HTTP_URL` | `http://127.0.0.1:8443` | HydraDB HTTP endpoint |
+| `HYDRA_TOKEN` | local development token | Bearer token; change before non-loopback use |
+| `HYDRA_GRAPH_ID` | `default` | Graph identifier |
+| `HYDRA_NAMESPACE` | `default` | Graph namespace |
+| `HYDRA_CELL_ID` | `cell-0` | HydraDB cell |
+| `QVAC_BASE_URL` | `http://127.0.0.1:11436/v1` | Local OpenAI-compatible QVAC endpoint |
+| `QVAC_MODEL` | `sourcetruce-extractor` | QVAC registry alias |
 
-```text
-ghcr.io/hydra-db/hydradb@sha256:db78309a233be54662db29744047e985a39b51c45a270d1a1f47c31a62cdb709
-```
+HydraDB OSS 0.1.0 is pinned by image digest in `docker-compose.yml`. Compose binds HydraDB ports to loopback only.
 
-Configuration defaults are documented in `.env.example`. Change the local token before exposing any service beyond loopback. The bundled Compose ports bind to `127.0.0.1` only.
+## Verified results
 
-## Evaluation
+Fresh local evidence from August 19, 2026:
 
-Run the complete deterministic evaluation against the live HydraDB graph:
+| Lane | Result |
+| --- | ---: |
+| Live judge cases | 4 attempted / 4 completed / 100% expected outcome |
+| ERB conflict extraction | 20 questions attempted; 26/40 observations accepted; 14 rejected |
+| Fully promoted ERB conflict verdicts | 1 (`qst_0411`) |
+| Source-aware mappings | 5 accepted + 5 rejected alternatives |
+| HERB identity candidates | 1,645 same-name pairs |
+| Hard negative identity pairs blocked | 1,627 |
+| SourceTruce false merges on known hard negatives | 0 |
+| Full HERB graph | 12,378 nodes / 22,906 edges |
+| Unit tests | 123 passed + 2 integration-only tests skipped in the ordinary run |
+| Explicit Hydra integration | 2/2 passed |
+
+The 20-question conflict run is intentionally reported as an attempt, not a benchmark score. The 0.6B local model rejected 14 observations and several accepted observations are not yet strong enough for automated adjudication. Only `qst_0411`, where both exact quotes and lifecycle states validate, is promoted into the judge UI. This is a quality limitation, not hidden missing data.
+
+Run the focused live evaluation:
 
 ```bash
-npm run evaluate:herb -- \
-  --input ../resources/HERB \
-  --evidence ../submission/evidence/evaluation/herb-hydra.json
+npm run evaluate:first-prize -- \
+  --herb-input "$HERB_DIR" \
+  --output "$EVIDENCE_DIR/first-prize.json"
 ```
 
-Verified local run on August 19, 2026:
-
-| Metric | Result |
-| --- | ---: |
-| Cases | 1,181 |
-| Verdict accuracy | 100% |
-| Evidence recall | 100% |
-| Invalid extra evidence | 0% |
-| Query latency p50 | 8.264 ms |
-| Query latency p95 | 11.606 ms |
-| Identity pair precision / recall / F1 | 100% / 100% / 100% |
-| Explicit duplicate pairs recovered | 18 / 18 |
-
-The 1,181 cases comprise every covered HERB employee role, employee location, and customer role lookup produced by this adapter (1,180 `SUPPORTED`) plus one coverage-boundary query (`UNKNOWN`). These are structural ground-truth checks derived from the downloaded HERB metadata and executed through live HydraDB reads.
-
-This result does **not** claim performance on contradictions or free-form answer generation. The downloaded HERB structural slice contains no labeled contradictory claims, so conflict accuracy is reported as unavailable rather than fabricated. Enterprise RAG Bench and unstructured HERB evaluation remain future work.
-
-The evaluation also records two ablations:
-
-- without entity resolution, 698 records remain fragmented instead of 680 canonical entities, leaving 18 duplicate records unresolved;
-- without the coverage gate, an unexamined `favorite_lunch` predicate would be mislabeled `NOT_FOUND` instead of correctly returning `UNKNOWN`.
-
-## Verification
+## How to verify the build
 
 ```bash
 npm test
@@ -116,36 +163,20 @@ HYDRA_INTEGRATION=1 npm test -- src/hydra/hydra.integration.test.ts
 npm run typecheck
 npm run lint
 npm run build
+npm audit
+git diff --check
 ```
 
-The integration test is skipped during ordinary unit runs and only passes when it performs a real write/read traversal against a running HydraDB instance.
+## Data handling and attribution
 
-## Local QVAC extraction
+Corpora, benchmark labels, local model files, saved evidence, and screenshots are deliberately excluded from this public repository.
 
-SourceTruce pins `@qvac/cli` 0.11.0 and QVAC's official Vercel AI SDK provider, `@qvac/ai-sdk-provider` 0.6.0, alongside AI SDK 7.0.68. It uses QVAC SDK 0.17.1 with the registry model constant `QWEN3_600M_INST_Q4`. The server binds only to `127.0.0.1:11436`; enterprise text stays on the machine.
+- Enterprise RAG Bench is MIT-licensed.
+- Salesforce HERB is CC BY-NC 4.0 and its dataset card states research-use limitations. SourceTruce does not imply unrestricted commercial use.
+- HydraDB and QVAC retain their own licenses and terms.
 
-```bash
-npm run qvac:doctor
-npm run qvac:serve
-```
-
-In a second terminal, reproduce the real HERB extraction:
-
-```bash
-npm run qvac:smoke -- \
-  --input ../resources/HERB \
-  --evidence ../submission/evidence/qvac/herb-employee.json
-```
-
-The verified provider run extracted `has_role = Software Engineer` for the canonical Charlie Davis entity and records its measured latency in the evidence artifact. The claim retained the original HERB source-object ID and an exact contiguous evidence quote, then completed a real HydraDB write/read round trip across `Entity -[:ASSERTS]-> Claim -[:SUPPORTED_BY]-> SourceObject`. Model output is rejected unless it parses against the claim schema, uses an explicitly allowed predicate, and quotes text that is present verbatim in the source.
-
-QVAC does not decide entity merges, authority, conflicts, coverage, or final verdicts. Keeping that boundary narrow makes a weak or malicious extraction fail closed instead of silently rewriting enterprise truth.
-
-## Dataset attribution
-
-- [Salesforce HERB](https://huggingface.co/datasets/Salesforce/HERB) is licensed CC BY-NC 4.0 and its dataset card describes research-use limitations. SourceTruce does not redistribute the corpus or imply unrestricted commercial use.
-- [Enterprise RAG Bench](https://github.com/onyx-dot-app/EnterpriseRAG-Bench) is MIT-licensed. Its benchmark materials are not bundled here and no Enterprise RAG Bench score is currently claimed.
+See [ATTRIBUTION.md](ATTRIBUTION.md) for dependency and dataset links.
 
 ## License
 
-SourceTruce is licensed under the [MIT License](LICENSE). HydraDB, datasets, and third-party packages retain their respective licenses and terms.
+SourceTruce is licensed under the [MIT License](LICENSE).
