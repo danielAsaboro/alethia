@@ -7,6 +7,7 @@ from scripts.fetch_erb_evidence import (
     EvidenceSelection,
     acquire_documents,
     load_conflict_selection,
+    load_alignment_selection,
 )
 
 
@@ -36,6 +37,32 @@ class FetchErbEvidenceTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "duplicate question_id"):
                 load_conflict_selection(questions)
+
+    def test_alignment_selection_preserves_schema_terms_but_not_answers(self):
+        row = {
+            "question_id": "qst_1",
+            "question_type": "metadata",
+            "source_types": ["hubspot"],
+            "question": "Who is the opportunity owner?",
+            "expected_doc_ids": ["doc_1"],
+            "gold_answer": "Secret Person",
+            "answer_facts": ["Secret Person owns it"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            questions = Path(directory) / "questions.jsonl"
+            questions.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+            selection = load_alignment_selection(questions)
+
+            self.assertEqual(selection.alignment_observations, ({
+                "questionId": "qst_1",
+                "documentId": "doc_1",
+                "sourceSystem": "hubspot",
+                "objectType": "opportunity",
+                "surface": "owner",
+                "contextualRole": "sales_opportunity",
+            },))
+            self.assertNotIn("Secret Person", json.dumps(selection.alignment_observations))
 
     def test_acquisition_deduplicates_byte_equivalent_dataset_rows(self):
         selection = EvidenceSelection(

@@ -1,5 +1,10 @@
 import type { AuthorityPolicy } from "@/claims/authority-policy";
 import type {
+  AlignmentDecision,
+  OntologyTerm,
+} from "@/alignment/alignment-policy";
+import type { SourceSchemaTerm } from "@/alignment/source-terms";
+import type {
   ClaimCorroboration,
   ClaimObservation,
   ConsolidatedClaim,
@@ -22,6 +27,15 @@ export interface EvidenceGraphInput {
   corroborations?: ClaimCorroboration[];
   conflicts: EvidenceConflict[];
   policies: AuthorityPolicy[];
+  alignment?: {
+    sourceTerms: SourceSchemaTerm[];
+    ontologyTerms: OntologyTerm[];
+    decisions: AlignmentDecision[];
+    observations: Array<{
+      sourceObjectId: string;
+      sourceTermId: string;
+    }>;
+  };
 }
 
 function edge(
@@ -227,6 +241,114 @@ export function mapEvidenceSystemToGraph(
           targetLogicalId: conflict.policyId,
         }),
       );
+    }
+  }
+
+  if (input.alignment) {
+    const sourceTermIds = new Set(
+      input.alignment.sourceTerms.map((term) => term.id),
+    );
+    const ontologyTermIds = new Set(
+      input.alignment.ontologyTerms.map((term) => term.id),
+    );
+    for (const term of input.alignment.sourceTerms) {
+      nodes.set(term.id, {
+        logicalId: term.id,
+        label: "SourceSchemaTerm",
+        properties: {
+          sourceSystem: term.sourceSystem,
+          objectType: term.objectType,
+          surface: term.surface,
+          normalizedSurface: term.normalizedSurface,
+          contextualRole: term.contextualRole,
+          canonicalHint: term.canonicalHint,
+        },
+      });
+    }
+    for (const term of input.alignment.ontologyTerms) {
+      nodes.set(term.id, {
+        logicalId: term.id,
+        label: "OntologyTerm",
+        properties: {
+          name: term.name,
+          domain: term.domain,
+          range: term.range,
+        },
+      });
+    }
+    for (const observation of input.alignment.observations) {
+      if (
+        !sourceIds.has(observation.sourceObjectId) ||
+        !sourceTermIds.has(observation.sourceTermId)
+      ) {
+        throw new TypeError("Alignment observation references a missing node");
+      }
+      edges.push(
+        edge({
+          type: "OBSERVED_AS",
+          sourceLabel: "SourceObject",
+          sourceLogicalId: observation.sourceObjectId,
+          targetLabel: "SourceSchemaTerm",
+          targetLogicalId: observation.sourceTermId,
+        }),
+      );
+    }
+    for (const decision of input.alignment.decisions) {
+      if (
+        !sourceTermIds.has(decision.sourceTermId) ||
+        !ontologyTermIds.has(decision.candidateOntologyTermId)
+      ) {
+        throw new TypeError(`Alignment decision references a missing term: ${decision.id}`);
+      }
+      nodes.set(decision.id, {
+        logicalId: decision.id,
+        label: "AlignmentDecision",
+        properties: {
+          sourceTermId: decision.sourceTermId,
+          candidateOntologyTermId: decision.candidateOntologyTermId,
+          status: decision.status,
+          reason: decision.reason,
+          policyId: decision.policyId ?? "",
+          policyVersion: decision.policyVersion ?? "",
+          constraintsJson: JSON.stringify(decision.constraints),
+          evidenceObservationIdsJson: JSON.stringify(
+            decision.evidenceObservationIds,
+          ),
+        },
+      });
+      edges.push(
+        edge({
+          type: "CONSIDERS",
+          sourceLabel: "AlignmentDecision",
+          sourceLogicalId: decision.id,
+          targetLabel: "OntologyTerm",
+          targetLogicalId: decision.candidateOntologyTermId,
+        }),
+      );
+      if (decision.status === "accepted") {
+        edges.push(
+          edge({
+            type: "MAPS_TO",
+            sourceLabel: "SourceSchemaTerm",
+            sourceLogicalId: decision.sourceTermId,
+            targetLabel: "OntologyTerm",
+            targetLogicalId: decision.candidateOntologyTermId,
+            discriminator: decision.id,
+            properties: { decisionId: decision.id },
+          }),
+        );
+      } else if (decision.status === "rejected") {
+        edges.push(
+          edge({
+            type: "REJECTED_MAPPING",
+            sourceLabel: "AlignmentDecision",
+            sourceLogicalId: decision.id,
+            targetLabel: "OntologyTerm",
+            targetLogicalId: decision.candidateOntologyTermId,
+            properties: { reason: decision.reason },
+          }),
+        );
+      }
     }
   }
 

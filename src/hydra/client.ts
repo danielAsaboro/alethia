@@ -126,6 +126,15 @@ export interface GraphConflictDecision {
   policyId?: string;
 }
 
+export interface GraphAlignmentDecision {
+  decisionId: string;
+  status: string;
+  sourceTermId: string;
+  ontologyTermId: string;
+  relationship: "MAPS_TO" | "REJECTED_MAPPING";
+  reason: string;
+}
+
 interface HydraValue {
   type: string;
   value: unknown;
@@ -388,6 +397,47 @@ export class HydraRepository {
         ? String(policyRows[0].policy)
         : undefined,
     };
+  }
+
+  async findAlignmentDecisions(
+    sourceTermLogicalId: string,
+  ): Promise<GraphAlignmentDecision[]> {
+    const sourceTermId = hydraIntId(sourceTermLogicalId);
+    const [acceptedRows, decisionRows] = await Promise.all([
+      this.query(
+        "MATCH (s:SourceSchemaTerm {id: $sourceTermId})-[r:MAPS_TO]->(o:OntologyTerm) RETURN r.payload_json AS edgePayload, o.logical_id AS ontology",
+        { sourceTermId },
+      ),
+      this.query(
+        "MATCH (d:AlignmentDecision)-[r:REJECTED_MAPPING]->(o:OntologyTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, o.logical_id AS ontology",
+      ),
+    ]);
+    const accepted = acceptedRows.map((row): GraphAlignmentDecision => {
+      const edgePayload = JSON.parse(String(row.edgePayload)) as Record<string, unknown>;
+      return {
+        decisionId: String(edgePayload.decisionId),
+        status: "accepted",
+        sourceTermId: sourceTermLogicalId,
+        ontologyTermId: String(row.ontology),
+        relationship: "MAPS_TO",
+        reason: "exact_registry_rule",
+      };
+    });
+    const rejected = decisionRows.flatMap((row): GraphAlignmentDecision[] => {
+      const payload = JSON.parse(String(row.decisionPayload)) as Record<string, unknown>;
+      if (payload.sourceTermId !== sourceTermLogicalId) return [];
+      return [{
+        decisionId: String(row.decision),
+        status: String(payload.status),
+        sourceTermId: sourceTermLogicalId,
+        ontologyTermId: String(row.ontology),
+        relationship: "REJECTED_MAPPING",
+        reason: String(payload.reason),
+      }];
+    });
+    return [...accepted, ...rejected].sort((left, right) =>
+      left.decisionId.localeCompare(right.decisionId),
+    );
   }
 
   async findCoverageSlices(

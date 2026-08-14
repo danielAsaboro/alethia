@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { ClaimObservation } from "@/domain/evidence";
 import { consolidateClaims } from "@/claims/consolidate-claims";
+import { decideAlignment } from "@/alignment/alignment-policy";
+import { createSourceSchemaTerm } from "@/alignment/source-terms";
 import { mapEvidenceSystemToGraph } from "./evidence-graph";
 
 function observation(
@@ -105,5 +107,95 @@ describe("mapEvidenceSystemToGraph", () => {
         targetLogicalId: conflict.policyId,
       }),
     ]);
+  });
+
+  it("maps accepted and rejected ontology alignment evidence", () => {
+    const sourceTerm = createSourceSchemaTerm({
+      sourceSystem: "google_drive",
+      objectType: "document",
+      surface: "owner",
+      contextualRole: "file_metadata",
+    });
+    const acceptedTerm = {
+      id: "ontology_file_owner",
+      name: "FILE_OWNER",
+      domain: "Document",
+      range: "Person",
+    };
+    const rejectedTerm = {
+      id: "ontology_repository_owner",
+      name: "REPOSITORY_OWNER",
+      domain: "Repository",
+      range: "Team",
+    };
+    const rule = {
+      id: "rule_drive_file_owner_v1",
+      version: "alignment-registry-v1",
+      sourceSystem: "google_drive",
+      objectType: "document",
+      surface: "owner",
+      contextualRole: "file_metadata",
+      targetOntologyTermId: acceptedTerm.id,
+      domain: "Document",
+      range: "Person",
+    };
+    const accepted = decideAlignment(
+      {
+        term: sourceTerm,
+        candidate: acceptedTerm,
+        evidenceObservationIds: [],
+      },
+      [rule],
+    );
+    const rejected = decideAlignment(
+      {
+        term: sourceTerm,
+        candidate: rejectedTerm,
+        evidenceObservationIds: [],
+      },
+      [rule],
+    );
+
+    const graph = mapEvidenceSystemToGraph({
+      claims: [],
+      observations: [],
+      sources: [
+        {
+          id: "source_drive_owner",
+          sourceSystem: "google_drive",
+          sourceNativeId: "drive_1",
+          payloadDigest: "digest_drive",
+        },
+      ],
+      conflicts: [],
+      policies: [],
+      alignment: {
+        sourceTerms: [sourceTerm],
+        ontologyTerms: [acceptedTerm, rejectedTerm],
+        decisions: [accepted, rejected],
+        observations: [
+          {
+            sourceObjectId: "source_drive_owner",
+            sourceTermId: sourceTerm.id,
+          },
+        ],
+      },
+    });
+
+    expect(graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "OBSERVED_AS" }),
+        expect.objectContaining({
+          type: "MAPS_TO",
+          sourceLogicalId: sourceTerm.id,
+          targetLogicalId: acceptedTerm.id,
+        }),
+        expect.objectContaining({
+          type: "REJECTED_MAPPING",
+          sourceLogicalId: rejected.id,
+          targetLogicalId: rejectedTerm.id,
+        }),
+      ]),
+    );
   });
 });

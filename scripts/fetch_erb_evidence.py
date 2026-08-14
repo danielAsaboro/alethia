@@ -31,6 +31,7 @@ class EvidenceSelection:
     question_ids: tuple[str, ...]
     document_ids: tuple[str, ...]
     selection_rule: str
+    alignment_observations: tuple[dict[str, str], ...] = ()
 
 
 def _read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
@@ -96,6 +97,8 @@ def load_conflict_selection(path: Path | str) -> EvidenceSelection:
 
 
 def load_alignment_selection(path: Path | str) -> EvidenceSelection:
+    rows = list(_read_jsonl(Path(path)))
+
     def includes_alignment_term(row: dict[str, Any]) -> bool:
         question = row.get("question")
         if not isinstance(question, str):
@@ -103,11 +106,51 @@ def load_alignment_selection(path: Path | str) -> EvidenceSelection:
         lowered = question.casefold()
         return any(re.search(rf"\b{re.escape(term)}\b", lowered) for term in ALIGNMENT_TERMS)
 
-    return _selection_from_rows(
-        _read_jsonl(Path(path)),
+    selection = _selection_from_rows(
+        rows,
         mode="alignment-discovery",
         rule="question contains whole-word owner|assignee|reporter|reviewer|responsible (v1)",
         include=includes_alignment_term,
+    )
+    observations: list[dict[str, str]] = []
+    for row in rows:
+        if not includes_alignment_term(row):
+            continue
+        question = str(row["question"]).casefold()
+        source_types = row.get("source_types")
+        document_ids = row.get("expected_doc_ids")
+        if not isinstance(source_types, list) or len(source_types) != 1:
+            raise ValueError(f"{row.get('question_id')} needs one alignment source type")
+        if not isinstance(document_ids, list):
+            raise ValueError(f"{row.get('question_id')} needs alignment document ids")
+        source_system = str(source_types[0])
+        if source_system == "google_drive" and "owner" in question:
+            term = ("document", "owner", "file_metadata")
+        elif source_system == "fireflies" and "meeting owner" in question:
+            term = ("meeting", "owner", "meeting_metadata")
+        elif source_system == "jira" and "assignee" in question:
+            term = ("issue", "assignee", "work_item_assignment")
+        elif source_system == "hubspot" and "opportunity owner" in question:
+            term = ("opportunity", "owner", "sales_opportunity")
+        elif source_system == "hubspot" and "sales owner" in question:
+            term = ("account", "owner", "sales_account")
+        else:
+            continue
+        for document_id in document_ids:
+            observations.append({
+                "questionId": str(row["question_id"]),
+                "documentId": str(document_id),
+                "sourceSystem": source_system,
+                "objectType": term[0],
+                "surface": term[1],
+                "contextualRole": term[2],
+            })
+    return EvidenceSelection(
+        mode=selection.mode,
+        question_ids=selection.question_ids,
+        document_ids=selection.document_ids,
+        selection_rule=selection.selection_rule,
+        alignment_observations=tuple(observations),
     )
 
 
@@ -208,6 +251,7 @@ def acquire_documents(
         "split": DATASET_SPLIT,
         "selectionMode": selection.mode,
         "selectionRule": selection.selection_rule,
+        "alignmentObservations": list(selection.alignment_observations),
         "selectionQuestionIds": list(selection.question_ids),
         "selectedDocumentIds": list(selection.document_ids),
         "resolvedDocumentIds": resolved_ids,

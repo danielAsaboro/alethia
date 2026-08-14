@@ -21,7 +21,8 @@
     "qvac:serve": "./scripts/qvac-serve.sh",
     "qvac:smoke": "tsx src/cli/qvac-smoke.ts",
     "extract:erb-conflicts": "tsx src/cli/extract-erb-conflicts.ts",
-    "adjudicate:erb-conflict": "tsx src/cli/adjudicate-erb-conflict.ts"
+    "adjudicate:erb-conflict": "tsx src/cli/adjudicate-erb-conflict.ts",
+    "discover:erb-alignment": "tsx src/cli/discover-erb-alignment.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.31",
