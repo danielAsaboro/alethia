@@ -346,6 +346,45 @@ describe("promoteAcceptedConflict", () => {
     });
   });
 
+  it("ranks updated API naming above a still-planned legacy endpoint", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_endpoint",
+      question: "What endpoint starts a migration?",
+      accepted: [
+        extraction({
+          cacheKey: "updated",
+          sourceObjectId: "src-updated",
+          sourceNativeId: "updated",
+          sourceTitle: "Migration API drive draft",
+          observation: {
+            subject: "migration",
+            predicate: "conflict_answer",
+            value: "POST /v1/capacity/migrations/start",
+            evidenceQuote: "API updated naming: POST /v1/capacity/migrations/start.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "planned",
+          sourceObjectId: "src-planned",
+          sourceNativeId: "planned",
+          observation: {
+            subject: "migration",
+            predicate: "conflict_answer",
+            value: "/v1/migration/start",
+            evidenceQuote: "Planned release notes: add /v1/migration/start in a future product release.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "POST /v1/capacity/migrations/start",
+    });
+  });
+
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",

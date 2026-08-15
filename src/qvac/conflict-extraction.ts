@@ -314,7 +314,7 @@ export function validateConflictSelection(input: {
       candidate.quote,
     )
       ? "applied"
-      : /short-term|recommend|propos|suggest|\bshould\b/i.test(candidate.quote)
+      : /short-term|recommend|propos|suggest|\bshould\b|\bplanned\b|\bfuture\s+(?:product\s+)?release\b/i.test(candidate.quote)
         ? "proposal"
         : (recoveredFromTruncation ? "unknown" : (result.data.lifecycle ?? "unknown"));
   return validateConflictObservation({

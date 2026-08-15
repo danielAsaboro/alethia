@@ -737,6 +737,47 @@ export class HydraRepository {
       }
     }
 
+    const conflictNodes = bundle.nodes.filter((node) => node.label === "Conflict");
+    const decisionTargetByConflict = new Map(
+      bundle.edges
+        .filter((edge) => edge.type === "DECIDED_BY" && edge.sourceLabel === "Conflict")
+        .map((edge) => [edge.sourceLogicalId, edge.targetLogicalId]),
+    );
+    const conflictRows = conflictNodes.map((node) => ({
+      sourceId: hydraIntId(node.logicalId),
+      targetId: decisionTargetByConflict.has(node.logicalId)
+        ? hydraIntId(decisionTargetByConflict.get(node.logicalId)!)
+        : null,
+    }));
+    for (const row of conflictRows) {
+      let existing: Record<string, unknown>[];
+      try {
+        existing = await this.query(
+          "MATCH (f:Conflict {id: $sourceId})-[:DECIDED_BY]->(p:AuthorityPolicy) RETURN p.id AS targetId",
+          { sourceId: row.sourceId },
+        );
+      } catch (error) {
+        throw new Error(`HydraDB exclusive policy read failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      const stale = existing
+        .filter(
+          (existingRow) =>
+            row.targetId === null ||
+            String(row.targetId) !== String(existingRow.targetId),
+        )
+        .map((existingRow) => existingRow.targetId);
+      for (const targetId of stale) {
+        try {
+          await this.query(
+            "MATCH (f {id: $sourceId})-[r:DECIDED_BY]->(p {id: $targetId}) DELETE r",
+            { sourceId: row.sourceId, targetId },
+          );
+        } catch (error) {
+          throw new Error(`HydraDB stale policy delete failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+
     for (const [groupKey, edges] of groupBy(
       bundle.edges,
       (edge) => `${edge.sourceLabel}|${edge.type}|${edge.targetLabel}`,

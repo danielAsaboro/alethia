@@ -417,8 +417,11 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
       nodes: graph.nodes.length,
       edges: graph.edges.length,
     });
-    expect(await repository.findObservationEvidence(subjectEntityId)).toHaveLength(
-      2,
+    const observationEvidence = await repository.findObservationEvidence(subjectEntityId);
+    expect(observationEvidence.map((item) => item.observationLogicalId)).toEqual(
+      expect.arrayContaining(
+        consolidated.observations.map((observation) => observation.id),
+      ),
     );
     expect(await repository.findConflictDecision(conflictId)).toMatchObject({
       conflictId,
@@ -427,6 +430,41 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         proposalObservation.claimCandidate.id,
       ]),
       policyId,
+    });
+
+    const revisedPolicyId = "policy_grounded_supersession_replay_v1";
+    const revisedGraph = mapEvidenceSystemToGraph({
+      claims: consolidated.claims,
+      observations: consolidated.observations,
+      sources: accepted.map((extraction) => ({
+        id: extraction.sourceObjectId,
+        sourceSystem: extraction.sourceSystem,
+        sourceNativeId: extraction.sourceNativeId,
+        payloadDigest: extraction.sourceDigest,
+      })),
+      conflicts: [
+        {
+          id: conflictId,
+          leftClaimId: appliedObservation.claimCandidate.id,
+          rightClaimId: proposalObservation.claimCandidate.id,
+          resolution: "left",
+          policyId: revisedPolicyId,
+        },
+      ],
+      policies: [
+        {
+          id: revisedPolicyId,
+          predicate: "conflict_answer",
+          sourceSystem: "enterprise",
+          priority: 110,
+          rationale: "A replayed adjudication replaces the prior exclusive policy edge",
+        },
+      ],
+    });
+    await repository.writeGraph(revisedGraph);
+    expect(await repository.findConflictDecision(conflictId)).toMatchObject({
+      conflictId,
+      policyId: revisedPolicyId,
     });
   });
 });

@@ -121,6 +121,9 @@ function precedenceScore(
     ? -2
     : 0;
   const negotiationDraft = /negotiat|proposal|email\s+thread/i.test(title) ? -3 : 0;
+  const plannedFuture = /\bplanned\b|\bfuture\s+(?:product\s+)?release\b/i.test(quote)
+    ? -5
+    : 0;
   return (
     lifecycleScore +
     explicitSupersession +
@@ -130,6 +133,7 @@ function precedenceScore(
     titleCurrent +
     titleDraft +
     negotiationDraft +
+    plannedFuture +
     queryAnchorScore(question, quote)
   );
 }

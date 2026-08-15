@@ -352,6 +352,28 @@ describe("constrained conflict evidence selection", () => {
     );
   });
 
+  it("keeps planned release-note behavior at proposal lifecycle", () => {
+    const candidates = [{
+      index: 0,
+      quote: "Planned release notes: add POST /v1/migration/start in the next product release.",
+    }];
+
+    expect(
+      validateConflictSelection({
+        responseText: JSON.stringify({
+          candidateIndex: 0,
+          value: "POST /v1/migration/start",
+          lifecycle: "applied",
+        }),
+        candidates,
+        sourceText: candidates[0].quote,
+        question: "What endpoint starts a migration?",
+        subject: "migration",
+        predicate: "conflict_answer",
+      }),
+    ).toMatchObject({ lifecycle: "proposal" });
+  });
+
   it("falls back to the exact candidate when the model value is not contiguous", () => {
     const candidates = [{ index: 0, quote: "The applied target is 30%." }];
     expect(
