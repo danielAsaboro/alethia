@@ -283,6 +283,20 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         { type: "SUPPORTED_BY" },
       ],
     });
+
+    const concurrent = await Promise.all(
+      Array.from({ length: 20 }, () => repository.findNativePaths({
+        sourceLogicalId: "entity_integration_native_path",
+        targetLogicalId: "source_integration_native_path",
+        relationshipTypes: ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
+        maxLength: 3,
+        pathCount: 1,
+      })),
+    );
+    const queryIds = concurrent.flatMap((paths) => paths.map((item) => item.queryId));
+    expect(queryIds).toHaveLength(20);
+    expect(new Set(queryIds)).toHaveLength(20);
+    expect(concurrent.every((paths) => paths.length === 1 && paths[0]?.roundTrips === 1)).toBe(true);
   });
 
   it("round-trips the real qst_0411 observation and decision paths", async () => {

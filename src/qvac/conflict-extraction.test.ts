@@ -146,6 +146,18 @@ describe("constrained conflict evidence selection", () => {
     ).toThrow("candidate does not exist");
   });
 
+  it("rejects truncated model JSON without recovering a partial success", () => {
+    expect(() =>
+      validateConflictSelection({
+        responseText: '{"candidateIndex":0,"value":"30%"',
+        candidates: [{ index: 0, quote: "The applied target is 30%." }],
+        sourceText: "The applied target is 30%.",
+        subject: "pool",
+        predicate: "conflict_answer",
+      }),
+    ).toThrow(/valid JSON/i);
+  });
+
   it("normalizes a single percentage from a selected quote and classifies lifecycle", () => {
     const candidates = [
       {
