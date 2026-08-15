@@ -28,7 +28,7 @@ function runtimeInputs(
 ): { extraction: ConflictExtractionArtifact; promotions: ConflictPromotion[] } {
   const extraction: ConflictExtractionArtifact = {
     schemaVersion: 1,
-    runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v7" },
+    runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v10" },
     cases: manifest.cases.map((item) => ({
       questionId: item.questionId,
       question: item.question,
@@ -44,7 +44,7 @@ function runtimeInputs(
                 sourceObjectId: `source-${item.questionId}-a`,
                 sourceNativeId: `doc-${item.questionId}-a`,
                 status: "accepted",
-                observation: { value: "96%" },
+                observation: { value: "96%", evidenceQuote: "Current correctness is 96%." },
                 latencyMs: 4,
               },
               {
@@ -60,14 +60,14 @@ function runtimeInputs(
                 sourceObjectId: `source-${item.questionId}-a`,
                 sourceNativeId: `doc-${item.questionId}-a`,
                 status: "accepted",
-                observation: { value: "new value" },
+                observation: { value: "new value", evidenceQuote: "Updated current setting: new value." },
                 latencyMs: 4,
               },
               {
                 sourceObjectId: `source-${item.questionId}-b`,
                 sourceNativeId: `doc-${item.questionId}-b`,
                 status: "accepted",
-                observation: { value: "old value" },
+                observation: { value: "old value", evidenceQuote: "Previous setting: old value." },
                 latencyMs: 5,
               },
             ],
@@ -154,7 +154,7 @@ describe("label-free ERB conflict runtime", () => {
     expect(first.cases.find((item) => item.questionId === "qst_0413")).toMatchObject({
       status: "completed",
       verdict: "DISPUTED",
-      answer: "Unresolved conflict: new value vs old value.",
+      answer: expect.stringMatching(/new value[\s\S]*Updated current setting[\s\S]*Previous setting/),
     });
     expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.digest).toBe(reordered.digest);
@@ -169,5 +169,32 @@ describe("label-free ERB conflict runtime", () => {
       }),
     ).toThrow(/digest/i);
     expect(() => assertNoEvaluationLabels(first)).not.toThrow();
+  });
+
+  it("links a normalized percentage winner back to its grounded extraction", async () => {
+    const manifest = await checkedInManifest();
+    const inputs = runtimeInputs(manifest);
+    const extracted = inputs.extraction.cases.find(
+      (item) => item.questionId === "qst_0411",
+    );
+    const promotion = inputs.promotions.find(
+      (item) => item.questionId === "qst_0411",
+    );
+    if (!extracted || !promotion || promotion.status !== "resolved") {
+      throw new Error("qst_0411 fixtures are missing");
+    }
+    extracted.extractions[0].observation = {
+      value: "Updated target: reserve 30% (previous suggestion was 20%).",
+      evidenceQuote: "Applied update: reserve 30%; the previous suggestion was 20%.",
+    };
+    promotion.winningValue = "30%";
+
+    const frozen = freezeConflictRuntime({ manifest, ...inputs });
+
+    expect(frozen.cases.find((item) => item.questionId === "qst_0411")).toMatchObject({
+      status: "completed",
+      verdict: "SUPPORTED",
+      answer: expect.stringMatching(/Grounded answer: 30%[\s\S]*Applied update/),
+    });
   });
 });

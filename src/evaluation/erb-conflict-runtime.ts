@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { normalizeAnswerValue } from "@/conflicts/promote-erb-conflict";
+
 const forbiddenLabel = /expected[_-]?doc[_-]?ids|gold[_-]?answer|answer[_-]?facts/i;
 
 export interface RuntimeConflictManifestCase {
@@ -20,7 +22,7 @@ export interface ConflictExtractionRecord {
   sourceObjectId: string;
   sourceNativeId: string;
   status: "accepted" | "rejected";
-  observation?: { value: unknown };
+  observation?: { value: unknown; evidenceQuote?: string };
   error?: string;
   latencyMs: number;
 }
@@ -320,12 +322,23 @@ export function freezeConflictRuntime(input: {
               typeof value === "number" ||
               typeof value === "boolean",
           )
-          .map(String),
+          .map((value) => String(normalizeAnswerValue(manifestCase.question, value))),
       ),
     ].sort((left, right) => left.localeCompare(right));
     const evidenceDocumentIds = [
       ...new Set(accepted.map((item) => item.sourceNativeId)),
     ].sort();
+    const groundedQuotes = [
+      ...new Set(
+        accepted
+          .map((item) => item.observation.evidenceQuote)
+          .filter(
+            (quote): quote is string =>
+              typeof quote === "string" && quote.trim().length > 0,
+          )
+          .map((quote) => quote.trim()),
+      ),
+    ];
     if (promotion.status === "resolved") {
       if (!promotion.winningValue || !values.includes(promotion.winningValue)) {
         return failedCase(
@@ -336,11 +349,44 @@ export function freezeConflictRuntime(input: {
           failures,
         );
       }
+      const winningQuotes = accepted
+        .filter(
+          (item) => {
+            const value = item.observation.value;
+            return (
+              (typeof value === "string" ||
+                typeof value === "number" ||
+                typeof value === "boolean") &&
+              String(normalizeAnswerValue(manifestCase.question, value)) ===
+                promotion.winningValue
+            );
+          },
+        )
+        .map((item) => item.observation.evidenceQuote)
+        .filter(
+          (quote): quote is string =>
+            typeof quote === "string" && quote.trim().length > 0,
+        )
+        .map((quote) => quote.trim());
+      const otherQuotes = groundedQuotes.filter(
+        (quote) => !winningQuotes.includes(quote),
+      );
+      const answer = [
+        `Grounded answer: ${promotion.winningValue}.`,
+        winningQuotes.length
+          ? `Controlling evidence: ${winningQuotes.join(" ")}`
+          : "",
+        otherQuotes.length
+          ? `Earlier or conflicting evidence retained: ${otherQuotes.join(" ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       return {
         ...manifestCase,
         status: "completed",
         verdict: "SUPPORTED",
-        answer: promotion.winningValue,
+        answer,
         evidenceDocumentIds,
         selectedSourceObjectIds,
         latencyMs,
@@ -361,7 +407,14 @@ export function freezeConflictRuntime(input: {
       ...manifestCase,
       status: "completed",
       verdict: "DISPUTED",
-      answer: `Unresolved conflict: ${values.join(" vs ")}.`,
+      answer: [
+        `The evidence remains disputed between ${values.join(" and ")}.`,
+        groundedQuotes.length
+          ? `Grounded source evidence: ${groundedQuotes.join(" ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       evidenceDocumentIds,
       selectedSourceObjectIds,
       latencyMs,

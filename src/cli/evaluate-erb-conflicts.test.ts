@@ -95,7 +95,11 @@ describe("runErbConflictEvaluation", () => {
       frozenRuntimeDigest: runtime.digest,
     });
     expect(writes.get("answers.jsonl")?.trim()).toBe(
-      JSON.stringify({ question_id: "qst_0411", answer: "new", document_ids: ["d1", "d2"] }),
+      JSON.stringify({
+        question_id: "qst_0411",
+        answer: "Grounded answer: new.",
+        document_ids: ["d1", "d2"],
+      }),
     );
     expect(JSON.parse(writes.get("out.json")!)).toMatchObject({ aggregate: { attempted: 1, answerCorrectness: 1 } });
   });

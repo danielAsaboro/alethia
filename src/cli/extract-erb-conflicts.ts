@@ -41,6 +41,7 @@ interface ExtractionRecord {
   sourceObjectId: string;
   sourceNativeId: string;
   sourceSystem: string;
+  sourceTitle: string;
   sourceDigest: string;
   status: "accepted" | "rejected";
   observation?: ConflictExtractionObservation;
@@ -52,7 +53,7 @@ interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v7";
+const promptVersion = "conflict-observation-v10";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
@@ -140,7 +141,7 @@ export function rankCandidateDocuments(
   limit: number,
 ): CandidateDocument[] {
   const questionTokens = tokens(runtimeCase.question);
-  return documents
+  const ranked = documents
     .filter((document) => runtimeCase.sourceTypes.includes(document.sourceSystem))
     .map((document) => {
       const title = document.title.toLocaleLowerCase("en-US");
@@ -159,7 +160,21 @@ export function rankCandidateDocuments(
         right.score - left.score ||
         left.document.sourceObjectId.localeCompare(right.document.sourceObjectId),
     )
-    .slice(0, limit)
+  const selected = new Map<string, (typeof ranked)[number]>();
+  for (const sourceSystem of runtimeCase.sourceTypes) {
+    const best = ranked.find((item) => item.document.sourceSystem === sourceSystem);
+    if (best && selected.size < limit) selected.set(best.document.sourceObjectId, best);
+  }
+  for (const item of ranked) {
+    if (selected.size >= limit) break;
+    selected.set(item.document.sourceObjectId, item);
+  }
+  return [...selected.values()]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.document.sourceObjectId.localeCompare(right.document.sourceObjectId),
+    )
     .map(({ document }) => document);
 }
 
@@ -273,6 +288,7 @@ async function main(): Promise<void> {
           sourceObjectId: document.sourceObjectId,
           sourceNativeId: document.sourceNativeId,
           sourceSystem: document.sourceSystem,
+          sourceTitle: document.title,
           sourceDigest: document.payloadDigest,
           status: "accepted",
           observation: result.observation,
@@ -287,6 +303,7 @@ async function main(): Promise<void> {
           sourceObjectId: document.sourceObjectId,
           sourceNativeId: document.sourceNativeId,
           sourceSystem: document.sourceSystem,
+          sourceTitle: document.title,
           sourceDigest: document.payloadDigest,
           status: "rejected",
           error: error instanceof Error ? error.message : String(error),
@@ -303,7 +320,7 @@ async function main(): Promise<void> {
       ...runtimeCase,
       questionDigest: sha256(runtimeCase.question),
       candidateSelection: {
-        algorithm: "source-filtered-lexical-v1",
+        algorithm: "source-diverse-lexical-v2",
         maximumDocuments: runtimeCase.maximumDocuments,
         selectedSourceObjectIds: candidates.map(
           (candidate) => candidate.sourceObjectId,

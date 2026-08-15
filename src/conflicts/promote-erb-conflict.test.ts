@@ -12,6 +12,7 @@ function extraction(
     status: "accepted",
     sourceSystem: "confluence",
     sourceDigest: "digest",
+    sourceTitle: "Current reference",
     ...overrides,
   };
 }
@@ -44,6 +45,41 @@ describe("promoteAcceptedConflict", () => {
     expect(result.conflict.resolution).toBe("left");
   });
 
+  it("normalizes a percentage answer from a grounded explanatory value", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_percentage",
+      question: "What % of credits should be reserved?",
+      accepted: [
+        extraction({
+          cacheKey: "current",
+          sourceObjectId: "src-current",
+          sourceNativeId: "current",
+          observation: {
+            subject: "pool",
+            predicate: "conflict_answer",
+            value: "Updated target: reserve 30% (previous suggestion was 20%).",
+            evidenceQuote: "Updated target: reserve 30% (previous suggestion was 20%).",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "proposal",
+          sourceObjectId: "src-proposal",
+          sourceNativeId: "proposal",
+          observation: {
+            subject: "pool",
+            predicate: "conflict_answer",
+            value: "20%",
+            evidenceQuote: "Proposal: reserve 20%.",
+            lifecycle: "proposal",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "resolved", winningValue: "30%" });
+  });
+
   it("leaves a contradiction unresolved when both lifecycles are unknown", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",
@@ -67,6 +103,62 @@ describe("promoteAcceptedConflict", () => {
     if (result.status !== "unresolved") throw new Error("expected unresolved");
     expect(result.conflict.resolution).toBe("unresolved");
     expect(result.losingClaimIds).toEqual([]);
+  });
+
+  it("resolves an explicitly corrected source over the superseded report", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_correction",
+      question: "What caused the incident?",
+      accepted: [
+        extraction({
+          cacheKey: "corrected",
+          sourceObjectId: "src-new",
+          sourceNativeId: "new",
+          sourceTitle: "Incident correction after telemetry review",
+          observation: { subject: "incident", predicate: "conflict_answer", value: "driver stalls", evidenceQuote: "Correction after deeper telemetry review: the issue was driver stalls, not OOM.", lifecycle: "applied" },
+        }),
+        extraction({
+          cacheKey: "old",
+          sourceObjectId: "src-old",
+          sourceNativeId: "old",
+          sourceTitle: "Initial incident report",
+          observation: { subject: "incident", predicate: "conflict_answer", value: "OOM", evidenceQuote: "Initial report: the issue was OOM.", lifecycle: "applied" },
+        }),
+      ],
+    });
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "driver stalls",
+      conflict: { resolution: "left", policyId: "policy_grounded_supersession_v2" },
+    });
+  });
+
+  it("uses post-merge current guidance over an earlier same-lifecycle spec", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_post_merge",
+      question: "Is the flag exposed?",
+      accepted: [
+        extraction({
+          cacheKey: "old-spec",
+          sourceObjectId: "src-old",
+          sourceNativeId: "old",
+          sourceTitle: "API v9 design",
+          observation: { subject: "api", predicate: "conflict_answer", value: "flag required", evidenceQuote: "Callers include the flag.", lifecycle: "applied" },
+        }),
+        extraction({
+          cacheKey: "post-merge",
+          sourceObjectId: "src-new",
+          sourceNativeId: "new",
+          sourceTitle: "API v9 post-merge notes",
+          observation: { subject: "api", predicate: "conflict_answer", value: "no public flag", evidenceQuote: "There is no per-request public flag.", lifecycle: "applied" },
+        }),
+      ],
+    });
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "no public flag",
+      conflict: { resolution: "right", policyId: "policy_grounded_supersession_v2" },
+    });
   });
 
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {

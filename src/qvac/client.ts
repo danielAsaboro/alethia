@@ -44,7 +44,7 @@ export interface QvacConflictExtractionInput {
 export interface QvacConflictExtractionResult {
   observation: ConflictExtractionObservation;
   model: string;
-  promptVersion: "conflict-observation-v7";
+  promptVersion: "conflict-observation-v10";
   responseText: string;
 }
 
@@ -170,11 +170,11 @@ export class QvacClient {
       baseURL: this.baseUrl.replace(/\/$/, ""),
       apiKey: process.env.QVAC_API_KEY ?? "local-loopback-only",
     });
-    const promptVersion = "conflict-observation-v7" as const;
+    const promptVersion = "conflict-observation-v10" as const;
     const candidates = buildGroundingCandidates({
       question: input.question,
       sourceText: input.sourceText,
-      limit: 12,
+      limit: 8,
     });
     if (candidates.length === 0) {
       throw new TypeError("Source has no eligible grounding candidates");
@@ -183,9 +183,9 @@ export class QvacClient {
       model: qvac(this.model),
       abortSignal: AbortSignal.timeout(120_000),
       temperature: 0,
-      maxOutputTokens: 100,
+      maxOutputTokens: 180,
       system:
-        'Select the one numbered source candidate that best answers the question. Return one minified JSON object only: {"candidateIndex":NUMBER,"value":"VALUE COPIED FROM THAT CANDIDATE","lifecycle":"ONE ALLOWED WORD"}. Use exactly those three keys once. The value must appear in the selected candidate. Do not quote the question, invent evidence, resolve conflicts, or add explanation.',
+        'Select the one numbered source candidate that most completely answers the question. Candidates may contain an exact multi-line source block. Return one minified JSON object only: {"candidateIndex":NUMBER,"value":"SHORTEST EXACT ANSWER SPAN, AT MOST 160 CHARACTERS","lifecycle":"ONE ALLOWED WORD"}. Use exactly those three keys once. Prefer a complete current setting, rule, or list over a heading. The value must be a contiguous substring of the selected candidate and must not repeat the full candidate. Do not quote the question, invent evidence, resolve conflicts across sources, or add explanation.',
       prompt: JSON.stringify({
         promptVersion,
         requiredPredicate: "conflict_answer",

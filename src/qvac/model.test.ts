@@ -61,8 +61,9 @@ describe("qvacRuntimeModel", () => {
       preload: true,
       config: {
         device: "gpu",
+        "main-gpu": "integrated",
         gpu_layers: 99,
-        ctx_size: 4096,
+        ctx_size: 16384,
         reasoning_budget: 0,
         tools: false,
       },

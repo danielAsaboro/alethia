@@ -112,4 +112,26 @@ describe("parseExtractErbConflictArgs", () => {
       "source_pool",
     ]);
   });
+
+  it("selects the strongest document from each requested source before filling extras", () => {
+    const ranked = rankCandidateDocuments(
+      {
+        questionId: "qst_source_diversity",
+        question: "What deterministic decoding settings must the eval runner enforce?",
+        questionType: "conflicting_info",
+        sourceTypes: ["confluence", "slack"],
+        maximumDocuments: 2,
+      },
+      [
+        { sourceObjectId: "confluence-best", sourceNativeId: "c1", sourceSystem: "confluence", title: "Eval runner deterministic decoding", body: "temperature and sampling controls", payloadDigest: "1" },
+        { sourceObjectId: "confluence-second", sourceNativeId: "c2", sourceSystem: "confluence", title: "Eval runner settings", body: "deterministic runner", payloadDigest: "2" },
+        { sourceObjectId: "slack-best", sourceNativeId: "s1", sourceSystem: "slack", title: "eng-ml", body: "deterministic decoding settings for the eval runner", payloadDigest: "3" },
+      ],
+      2,
+    );
+    expect(ranked.map((item) => item.sourceObjectId).sort()).toEqual([
+      "confluence-best",
+      "slack-best",
+    ]);
+  });
 });

@@ -99,8 +99,8 @@ export function buildGroundingCandidates(input: {
   limit: number;
 }): GroundingCandidate[] {
   const questionTokens = lexicalTokens(input.question);
-  const segments = input.sourceText
-    .split(/\r?\n/)
+  const rawLines = input.sourceText.split("\n");
+  const baseSegments = rawLines
     .flatMap((line) =>
       line.length > 900
         ? (line.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [line])
@@ -108,18 +108,37 @@ export function buildGroundingCandidates(input: {
     )
     .map((segment) => segment.trim())
     .filter((segment) => segment.length >= 12);
+  const segments = [...baseSegments];
+  for (let index = 0; index < rawLines.length; index += 1) {
+    for (const width of [2, 3, 5, 8]) {
+      const lines = rawLines.slice(index, index + width);
+      const quote = lines.join("\n").trim();
+      if (
+        quote.length >= 24 &&
+        quote.length <= 2400 &&
+        lines.length === width
+      ) {
+        segments.push(quote);
+      }
+    }
+  }
+  const uniqueSegments = [...new Set(segments)];
   const valueTypedSegments = /%|percent|percentage/i.test(input.question)
-    ? segments.filter((segment) => /%|percent|percentage/i.test(segment))
-    : segments;
+    ? uniqueSegments.filter((segment) => /%|percent|percentage/i.test(segment))
+    : uniqueSegments;
 
-  return (valueTypedSegments.length > 0 ? valueTypedSegments : segments)
+  const ranked = (valueTypedSegments.length > 0 ? valueTypedSegments : uniqueSegments)
     .map((quote, originalIndex) => {
       const lowered = quote.toLocaleLowerCase("en-US");
       const overlap = questionTokens.filter((token) =>
         lowered.includes(token),
       ).length;
+      const listLines = quote
+        .split("\n")
+        .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line)).length;
       const score =
         overlap * 4 +
+        Math.min(8, listLines * 2) +
         (/\d/.test(quote) ? 2 : 0) +
         (/%|percent|percentage/i.test(quote) ? 3 : 0) +
         (/propos|approv|appl|deploy|updat|deprecated|earlier|current/i.test(
@@ -132,9 +151,16 @@ export function buildGroundingCandidates(input: {
     .sort(
       (left, right) =>
         right.score - left.score || left.originalIndex - right.originalIndex,
-    )
-    .slice(0, input.limit)
-    .map(({ quote }, index) => ({ index, quote }));
+    );
+  const selected: string[] = [];
+  let totalChars = 0;
+  for (const { quote } of ranked) {
+    if (selected.length >= input.limit) break;
+    if (selected.length > 0 && totalChars + quote.length > 10_000) continue;
+    selected.push(quote);
+    totalChars += quote.length;
+  }
+  return selected.map((quote, index) => ({ index, quote }));
 }
 
 export function validateConflictSelection(input: {
@@ -146,14 +172,21 @@ export function validateConflictSelection(input: {
   predicate: string;
 }): ConflictExtractionObservation {
   let parsed: unknown;
+  let recoveredFromTruncation = false;
+  const body = jsonBody(input.responseText);
   try {
-    const repairedTrailingComma = jsonBody(input.responseText).replace(
+    const repairedTrailingComma = body.replace(
       /,\s*}$/,
       "}",
     );
     parsed = JSON.parse(repairedTrailingComma) as unknown;
   } catch {
-    throw new TypeError("QVAC conflict selection returned invalid JSON");
+    const indexes = [...body.matchAll(/"candidateIndex"\s*:\s*(\d+)/g)];
+    if (indexes.length !== 1) {
+      throw new TypeError("QVAC conflict selection returned invalid JSON");
+    }
+    parsed = { candidateIndex: Number(indexes[0]![1]), value: "recovered" };
+    recoveredFromTruncation = true;
   }
   const result = selectionSchema.safeParse(parsed);
   if (!result.success) {
@@ -165,7 +198,7 @@ export function validateConflictSelection(input: {
   if (!candidate) {
     throw new TypeError("QVAC conflict selection candidate does not exist");
   }
-  let value = result.data.value;
+  let value = recoveredFromTruncation ? candidate.quote : result.data.value;
   if (
     typeof value === "string" &&
     value.trim() === candidate.quote.trim() &&
@@ -181,7 +214,7 @@ export function validateConflictSelection(input: {
       ? "applied"
       : /short-term|recommend|propos|suggest|\bshould\b/i.test(candidate.quote)
         ? "proposal"
-        : (result.data.lifecycle ?? "unknown");
+        : (recoveredFromTruncation ? "unknown" : (result.data.lifecycle ?? "unknown"));
   return validateConflictObservation({
     responseText: JSON.stringify({
       subject: input.subject,

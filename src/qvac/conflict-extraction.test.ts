@@ -83,6 +83,54 @@ describe("validateConflictObservation", () => {
 });
 
 describe("constrained conflict evidence selection", () => {
+  it("offers bounded adjacent source lines so a heading retains its required settings", () => {
+    const sourceText = [
+      "When deterministic mode is enabled, enforce these decoding settings:",
+      "- temperature=0 and top_p=1",
+      "- disable sampling and pin the random seed",
+      "Unrelated appendix.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What deterministic decoding settings must be enforced?",
+      sourceText,
+      limit: 12,
+    });
+    expect(candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        quote: expect.stringMatching(/deterministic mode[\s\S]*temperature=0[\s\S]*disable sampling/i),
+      }),
+    ]));
+    expect(candidates.every((item) => item.quote.length <= 2400)).toBe(true);
+    expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
+  });
+
+  it("offers a complete structured list while keeping the total prompt budget bounded", () => {
+    const sourceText = [
+      "Current deterministic decoding settings:",
+      "- do_sample=false",
+      "- temperature=0",
+      "- top_k=0",
+      "- top_p=1",
+      "- num_beams=1",
+      "- use an explicit generator",
+      "- preserve stable ordering",
+      "Appendix: unrelated implementation notes.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What deterministic decoding settings must be enforced?",
+      sourceText,
+      limit: 8,
+    });
+
+    expect(candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        quote: expect.stringMatching(/do_sample=false[\s\S]*stable ordering/),
+      }),
+    ]));
+    expect(candidates.reduce((total, item) => total + item.quote.length, 0)).toBeLessThanOrEqual(10_000);
+    expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
+  });
+
   it("turns a selected exact source candidate into a grounded observation", () => {
     const body = [
       "Unrelated operational note.",
@@ -146,16 +194,38 @@ describe("constrained conflict evidence selection", () => {
     ).toThrow("candidate does not exist");
   });
 
-  it("rejects truncated model JSON without recovering a partial success", () => {
-    expect(() =>
+  it("recovers a unique valid candidate index from truncated model JSON", () => {
+    expect(
       validateConflictSelection({
-        responseText: '{"candidateIndex":0,"value":"30%"',
+        responseText: '{"candidateIndex":0,"value":"The applied target is 30%',
         candidates: [{ index: 0, quote: "The applied target is 30%." }],
         sourceText: "The applied target is 30%.",
+        question: "What % is the applied target?",
         subject: "pool",
         predicate: "conflict_answer",
       }),
+    ).toMatchObject({ value: "30%", evidenceQuote: "The applied target is 30%." });
+  });
+
+  it("rejects truncated JSON with an ambiguous or nonexistent candidate index", () => {
+    const input = {
+      candidates: [{ index: 0, quote: "The applied target is 30%." }],
+      sourceText: "The applied target is 30%.",
+      subject: "pool",
+      predicate: "conflict_answer",
+    };
+    expect(() =>
+      validateConflictSelection({
+        ...input,
+        responseText: '{"candidateIndex":0,"candidateIndex":1,"value":"',
+      }),
     ).toThrow(/valid JSON/i);
+    expect(() =>
+      validateConflictSelection({
+        ...input,
+        responseText: '{"candidateIndex":9,"value":"',
+      }),
+    ).toThrow(/candidate does not exist/i);
   });
 
   it("normalizes a single percentage from a selected quote and classifies lifecycle", () => {
