@@ -57,7 +57,7 @@ export interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v12";
+const promptVersion = "conflict-observation-v13";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
@@ -147,12 +147,40 @@ function tokens(value: string): string[] {
   ];
 }
 
+function queriedLiteralAnchors(question: string): string[] {
+  return [
+    ...new Set(
+      question
+        .normalize("NFKC")
+        .toLocaleLowerCase("en-US")
+        .match(/\b\d+(?:\.\d+)?(?:h|hr|hrs|hours?|d|days?|%|gb|gib|tokens?)?\b/g) ?? [],
+    ),
+  ];
+}
+
+function contradictedAnchorCount(body: string, anchors: string[]): number {
+  const normalized = body.normalize("NFKC").toLocaleLowerCase("en-US");
+  let count = 0;
+  for (const anchor of anchors) {
+    let offset = normalized.indexOf(anchor);
+    while (offset >= 0) {
+      const context = normalized.slice(Math.max(0, offset - 40), offset + anchor.length + 40);
+      if (/\b(?:not|deprecated|superseded|previous(?:ly)?|formerly)\b|updated\s+from/.test(context)) {
+        count += 1;
+      }
+      offset = normalized.indexOf(anchor, offset + anchor.length);
+    }
+  }
+  return count;
+}
+
 export function rankCandidateDocuments(
   runtimeCase: RuntimeConflictCase,
   documents: CandidateDocument[],
   limit: number,
 ): CandidateDocument[] {
   const questionTokens = tokens(runtimeCase.question);
+  const literalAnchors = queriedLiteralAnchors(runtimeCase.question);
   const ranked = documents
     .filter((document) => runtimeCase.sourceTypes.includes(document.sourceSystem))
     .map((document) => {
@@ -166,7 +194,7 @@ export function rankCandidateDocuments(
           (titleTokens.has(token) || title.includes(token) ? 5 : 0) +
           (bodyTokens.has(token) || body.includes(token) ? 1 : 0),
         0,
-      );
+      ) - contradictedAnchorCount(document.body, literalAnchors) * 8;
       return { document, score };
     })
     .sort(

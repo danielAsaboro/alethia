@@ -100,7 +100,7 @@ describe("constrained conflict evidence selection", () => {
         quote: expect.stringMatching(/deterministic mode[\s\S]*temperature=0[\s\S]*disable sampling/i),
       }),
     ]));
-    expect(candidates.every((item) => item.quote.length <= 2400)).toBe(true);
+    expect(candidates.every((item) => item.quote.length <= 7000)).toBe(true);
     expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
   });
 
@@ -227,6 +227,45 @@ describe("constrained conflict evidence selection", () => {
     });
 
     expect(candidates[0]?.quote).toMatch(/>= 85[\s\S]*70-84[\s\S]*50-69[\s\S]*< 50/);
+  });
+
+  it("prioritizes the rate together with its explicit measurement basis", () => {
+    const sourceText = [
+      "Current measurement basis:",
+      "- Use provider-billed GiB for cross-region egress.",
+      "- Attribute egress to request traces using sampled bytes, not token counts.",
+      ...Array.from({ length: 30 }, (_, index) => `Operational detail ${index + 1}.`),
+      "Current catalog row:",
+      "- Rate is $0.085 per GiB; expected impact is $160-$260 per hour at 1000 rps.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What egress cost rate and measurement basis does the catalog use?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates[0]?.quote).toMatch(
+      /provider-billed GiB[\s\S]*sampled bytes[\s\S]*160-\$260/i,
+    );
+  });
+
+  it("prioritizes exact identifier syntax for format questions", () => {
+    const sourceText = [
+      "Final weekly delivery: Tuesdays by 07:00 PT.",
+      ...Array.from({ length: 12 }, (_, index) => `Invoice cadence detail ${index + 1}.`),
+      "Final po_fingerprint format:",
+      "- Hash the exact string PO_NUMBER|PO_LINE_UUID with no whitespace.",
+      "- Emit the lowercase SHA-256 hex digest on every invoice line.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What is the final po_fingerprint format and weekly delivery time?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates[0]?.quote).toMatch(/PO_NUMBER\|PO_LINE_UUID[\s\S]*no whitespace/i);
+    expect(candidates[0]?.quote).toMatch(/lowercase SHA-256 hex digest/i);
+    expect(candidates[0]?.quote).toMatch(/07:00 PT/i);
   });
 
   it("preserves literal escaped newlines while building structured candidates", () => {

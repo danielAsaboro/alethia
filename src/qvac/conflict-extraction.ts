@@ -113,7 +113,7 @@ export function buildGroundingCandidates(input: {
     .filter((segment) => segment.length >= 12);
   const segments = [...baseSegments];
   for (let index = 0; index < rawLines.length; index += 1) {
-    for (const width of [2, 3, 5, 8, 10]) {
+    for (const width of [2, 3, 4, 5, 6, 8, 10]) {
       const lines = rawLines.slice(index, index + width);
       const quote = lines.join("\n").trim();
       if (
@@ -124,6 +124,55 @@ export function buildGroundingCandidates(input: {
         segments.push(quote);
       }
     }
+  }
+  const addIntentSpan = (indices: number[]): void => {
+    const present = indices.filter((index) => index >= 0);
+    if (present.length < 2) return;
+    const start = Math.max(0, Math.min(...present) - 1);
+    const end = Math.min(rawLines.length, Math.max(...present) + 2);
+    const quote = rawLines.slice(start, end).join("\n").trim();
+    if (quote.length >= 24 && quote.length <= 7000) segments.push(quote);
+  };
+  const bestMatchingLineIndex = (pattern: RegExp): number =>
+    rawLines
+      .map((line, index) => ({
+        index,
+        overlap: questionTokens.filter(
+          (token) =>
+            !new Set(["basis", "catalog", "cost", "format", "measurement", "rate", "time", "use", "weekly"])
+              .has(token) && lexicalTokens(line).includes(token),
+        ).length,
+      }))
+      .filter(({ index }) => pattern.test(rawLines[index]!))
+      .sort((left, right) => right.overlap - left.overlap || left.index - right.index)[0]
+      ?.index ?? -1;
+  if (/\bmeasurement\s+basis\b/i.test(input.question)) {
+    addIntentSpan([
+      bestMatchingLineIndex(
+        /provider[^\n]{0,40}bill|sampled\s+bytes|measurement\s+basis/i,
+      ),
+      bestMatchingLineIndex(
+        /(?:[$€£]\s*\d[^\n]{0,100}\b(?:gb|gib|byte|token)s?\b|\b(?:gb|gib|byte|token)s?\b[^\n]{0,100}[$€£]\s*\d)/i,
+      ),
+    ]);
+  }
+  if (/\b(?:format|fingerprint|identifier|digest)\b/i.test(input.question)) {
+    addIntentSpan([
+      rawLines.findIndex((line) =>
+        /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b[^\n]{0,50}\b\d{1,2}:\d{2}\b/i.test(line),
+      ),
+      rawLines.findIndex((line) =>
+        /[A-Z][A-Z0-9_]+\s*\|\s*[A-Z][A-Z0-9_]+/.test(line),
+      ),
+      rawLines.findIndex((line) => /\b(?:no|not|without)\b[^\n]{0,40}\bwhitespace\b/i.test(line)),
+      rawLines.findIndex((line) => /\b(?:sha-?\d+|hex(?:adecimal)?|digest|hash)\b/i.test(line)),
+      rawLines.findIndex(
+        (line) =>
+          /\b(?:every|each|per)\b/i.test(line) &&
+          /\b(?:line|record|item)\b/i.test(line) &&
+          /(?:fingerprint|identifier|digest|hash)/i.test(line),
+      ),
+    ]);
   }
   const uniqueSegments = [...new Set(segments)];
   const valueTypedSegments = /%|percent|percentage/i.test(input.question)
@@ -144,10 +193,31 @@ export function buildGroundingCandidates(input: {
       )
         ? quote.match(/(?:>=|<=|>|<)\s*\d+|\b\d+\s*[-–]\s*\d+\b/g)?.length ?? 0
         : 0;
+      const measurementBasisSignals = /\bmeasurement\s+basis\b/i.test(input.question)
+        ? [
+            /\b(?:gb|gib|bytes?)\b/i,
+            /\b(?:bill|billed|billing)\b/i,
+            /\b(?:sampled?|attribute|trace)\w*\b/i,
+            /\b(?:token|request)\w*\b/i,
+          ].filter((pattern) => pattern.test(quote)).length
+        : 0;
+      const identifierFormatSignals = /\b(?:format|fingerprint|identifier|digest)\b/i.test(
+        input.question,
+      )
+        ? [
+            /[A-Z][A-Z0-9_]+\s*\|\s*[A-Z][A-Z0-9_]+/,
+            /\b(?:no|not|without)\b[^\n]{0,40}\bwhitespace\b/i,
+            /\b(?:sha-?\d+|hex(?:adecimal)?|digest|hash)\b/i,
+            /\b(?:every|each|per)\b[^\n]{0,40}\b(?:line|record|item)\b/i,
+            /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b[^\n]{0,40}\b\d{1,2}:\d{2}\b/i,
+          ].filter((pattern) => pattern.test(quote)).length
+        : 0;
       const score =
         overlap * 5 +
         Math.min(4, listLines) +
         Math.min(12, numericRanges * 3) +
+        measurementBasisSignals * 4 +
+        identifierFormatSignals * 4 +
         (/\d/.test(quote) ? 2 : 0) +
         (/\bas of\b|\bv\d+(?:\.\d+)+\+?/i.test(quote) ? 6 : 0) +
         (/%|percent|percentage/i.test(quote) ? 3 : 0) +

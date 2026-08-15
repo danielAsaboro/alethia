@@ -169,6 +169,42 @@ describe("parseExtractErbConflictArgs", () => {
     expect(ranked.map((item) => item.sourceObjectId)).toEqual(["specific-export"]);
   });
 
+  it("orders native-record versions by whether they assert the queried duration", () => {
+    const ranked = rankCandidateDocuments(
+      {
+        questionId: "qst_grace_window",
+        question: "Who approves termination after the 72h grace window?",
+        questionType: "conflicting_info",
+        sourceTypes: ["jira"],
+        maximumDocuments: 2,
+      },
+      [
+        {
+          sourceObjectId: "asserted-version",
+          sourceNativeId: "ticket-42",
+          sourceSystem: "jira",
+          title: "Stale instance cleanup",
+          body: "Terminate after the 72h grace window. Cost-ops approves termination after the grace window.",
+          payloadDigest: "asserted",
+        },
+        {
+          sourceObjectId: "superseding-version",
+          sourceNativeId: "ticket-42",
+          sourceSystem: "jira",
+          title: "Stale instance cleanup archived",
+          body: "Use five business days, updated from 72h. The final rule is not 72h.",
+          payloadDigest: "superseding",
+        },
+      ],
+      2,
+    );
+
+    expect(ranked.map((item) => item.sourceObjectId)).toEqual([
+      "asserted-version",
+      "superseding-version",
+    ]);
+  });
+
   it("revalidates a cached rejected response against its exact candidate set", () => {
     const runtimeCase = {
       questionId: "qst_cached",

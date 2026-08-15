@@ -271,6 +271,41 @@ describe("promoteAcceptedConflict", () => {
     expect(result).toMatchObject({ status: "resolved", winningValue: "120 seconds" });
   });
 
+  it("prefers the claim that asserts a queried duration over a version that replaces it", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_duration_snapshot",
+      question: "Who approves termination after the 72h grace window?",
+      accepted: [
+        extraction({
+          cacheKey: "asserted",
+          sourceObjectId: "src-asserted",
+          sourceNativeId: "ticket-42",
+          observation: {
+            subject: "cleanup",
+            predicate: "conflict_answer",
+            value: "cost-ops",
+            evidenceQuote: "Can we get infra approval after 72h? Cost-ops approves termination after the grace window.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "replaced",
+          sourceObjectId: "src-replaced",
+          sourceNativeId: "ticket-42",
+          observation: {
+            subject: "cleanup",
+            predicate: "conflict_answer",
+            value: "infra manager",
+            evidenceQuote: "Use five business days, updated from 72h. The final rule is not 72h.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "resolved", winningValue: "cost-ops" });
+  });
+
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",

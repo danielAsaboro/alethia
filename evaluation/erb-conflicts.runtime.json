@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "promptVersion": "conflict-observation-v12",
+  "promptVersion": "conflict-observation-v13",
   "cases": [
     { "questionId": "qst_0411", "question": "On Streamly AI's dedicated pool dp-132-usw, what % of interactive burst credits should be reserved exclusively for priority=high routes?", "questionType": "conflicting_info", "sourceTypes": ["google_drive", "jira"], "maximumDocuments": 2 },
     { "questionId": "qst_0412", "question": "For extraction, what price-normalization correctness is reported at temp=0.0 with strict JSON + canonicalization, and what earlier % is it compared to?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },

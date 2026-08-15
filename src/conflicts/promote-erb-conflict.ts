@@ -57,7 +57,39 @@ const groundedSupersessionPolicy: AdjudicationPolicy = {
   order: ["deprecated", "proposal", "approved", "applied"],
 };
 
-function precedenceScore(extraction: AcceptedConflictExtraction): number {
+function queryAnchorScore(question: string, quote: string): number {
+  const anchors = [
+    ...new Set(
+      question
+        .normalize("NFKC")
+        .toLocaleLowerCase("en-US")
+        .match(/\b\d+(?:\.\d+)?(?:h|hr|hrs|hours?|d|days?)\b/g) ?? [],
+    ),
+  ];
+  const normalizedQuote = quote.normalize("NFKC").toLocaleLowerCase("en-US");
+  let score = 0;
+  for (const anchor of anchors) {
+    let offset = normalizedQuote.indexOf(anchor);
+    while (offset >= 0) {
+      const context = normalizedQuote.slice(
+        Math.max(0, offset - 40),
+        offset + anchor.length + 40,
+      );
+      score += /\b(?:not|deprecated|superseded|previous(?:ly)?|formerly)\b|updated\s+from/.test(
+        context,
+      )
+        ? -10
+        : 6;
+      offset = normalizedQuote.indexOf(anchor, offset + anchor.length);
+    }
+  }
+  return score;
+}
+
+function precedenceScore(
+  extraction: AcceptedConflictExtraction,
+  question: string,
+): number {
   const quote = extraction.observation.evidenceQuote;
   const title = extraction.sourceTitle ?? "";
   const lifecycleScore = {
@@ -88,7 +120,8 @@ function precedenceScore(extraction: AcceptedConflictExtraction): number {
     latestMarker +
     currentMarker +
     titleCurrent +
-    titleDraft
+    titleDraft +
+    queryAnchorScore(question, quote)
   );
 }
 
@@ -144,7 +177,7 @@ export function promoteAcceptedConflict(input: {
   const observations: ClaimObservation[] = accepted.map((extraction) => ({
     id: stableId("observation", {
       cacheKey: extraction.cacheKey,
-      promptVersion: "conflict-observation-v12",
+      promptVersion: "conflict-observation-v13",
     }),
     claimCandidate: {
       id: `candidate_${extraction.cacheKey}`,
@@ -157,11 +190,11 @@ export function promoteAcceptedConflict(input: {
       sourceObjectId: extraction.sourceObjectId,
       sourceSystem: extraction.sourceSystem,
       extractionMethod: "qvac",
-      extractorVersion: "qvac:sourcetruce-extractor:v12",
+      extractorVersion: "qvac:sourcetruce-extractor:v13",
     },
     evidenceQuote: extraction.observation.evidenceQuote,
     method: "qvac",
-    extractorVersion: "qvac:sourcetruce-extractor:v12",
+    extractorVersion: "qvac:sourcetruce-extractor:v13",
   }));
   const consolidated = consolidateClaims(observations);
   const adjudicationClaims = accepted.map((extraction): AdjudicationClaim => {
@@ -188,8 +221,8 @@ export function promoteAcceptedConflict(input: {
   let activePolicy = lifecyclePolicy;
   let adjudication = adjudicateConflict({ id: conflictId, left, right }, [activePolicy]);
   if (adjudication.status === "unresolved") {
-    let leftScore = precedenceScore(accepted[0]);
-    let rightScore = precedenceScore(accepted[1]);
+    let leftScore = precedenceScore(accepted[0], input.question);
+    let rightScore = precedenceScore(accepted[1], input.question);
     if (/\b(?:latest|current|most recent)\b/i.test(input.question)) {
       const leftTimestamp = latestEvidenceTimestamp(accepted[0]);
       const rightTimestamp = latestEvidenceTimestamp(accepted[1]);

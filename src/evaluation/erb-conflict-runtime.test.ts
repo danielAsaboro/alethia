@@ -28,7 +28,7 @@ function runtimeInputs(
 ): { extraction: ConflictExtractionArtifact; promotions: ConflictPromotion[] } {
   const extraction: ConflictExtractionArtifact = {
     schemaVersion: 1,
-    runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v12" },
+    runtime: { model: "sourcetruce-extractor", promptVersion: manifest.promptVersion },
     cases: manifest.cases.map((item) => ({
       questionId: item.questionId,
       question: item.question,
