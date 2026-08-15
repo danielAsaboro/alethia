@@ -4,6 +4,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { stableId } from "@/domain/ids";
+import {
+  assertNoEvaluationLabels,
+  parseRuntimeManifest,
+  type RuntimeConflictManifestCase,
+} from "@/evaluation/erb-conflict-runtime";
 import { ErbAdapter } from "@/ingestion/erb-adapter";
 import type { ConflictExtractionObservation } from "@/qvac/conflict-extraction";
 import {
@@ -14,16 +19,12 @@ import { qvacRuntimeModel } from "@/qvac/model";
 
 interface ExtractErbConflictArgs {
   documents: string;
-  questions: string;
+  manifest: string;
   output: string;
   limit: number;
 }
 
-export interface RuntimeConflictCase {
-  questionId: string;
-  question: string;
-  sourceTypes: string[];
-}
+export type RuntimeConflictCase = RuntimeConflictManifestCase;
 
 export interface CandidateDocument {
   sourceObjectId: string;
@@ -50,7 +51,7 @@ interface ExtractionRecord {
 }
 
 const usage =
-  "Usage: npm run extract:erb-conflicts -- --documents <path> --questions <path> --output <path> --limit <positive integer>";
+  "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
 const promptVersion = "conflict-observation-v7";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
@@ -77,7 +78,7 @@ export function parseExtractErbConflictArgs(
   const values = new Map<string, string>();
   const allowed = new Set([
     "--documents",
-    "--questions",
+    "--manifest",
     "--output",
     "--limit",
   ]);
@@ -90,41 +91,35 @@ export function parseExtractErbConflictArgs(
     values.set(flag, value);
   }
   const documents = values.get("--documents");
-  const questions = values.get("--questions");
+  const manifest = values.get("--manifest");
   const output = values.get("--output");
   const limitValue = values.get("--limit");
   const limit = limitValue ? Number(limitValue) : Number.NaN;
   if (
     !documents ||
-    !questions ||
+    !manifest ||
     !output ||
     !Number.isSafeInteger(limit) ||
     limit < 1
   ) {
     throw new TypeError(usage);
   }
-  return { documents, questions, output, limit };
+  return { documents, manifest, output, limit };
 }
 
 export function toRuntimeConflictCase(raw: unknown): RuntimeConflictCase {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new TypeError("ERB question must be an object");
+  try {
+    return parseRuntimeManifest({
+      schemaVersion: 1,
+      promptVersion,
+      cases: [raw],
+    }).cases[0]!;
+  } catch (error) {
+    if (error instanceof TypeError && /evaluation label/i.test(error.message)) {
+      throw error;
+    }
+    throw new TypeError("ERB conflict case has an invalid runtime shape");
   }
-  const row = raw as Record<string, unknown>;
-  if (
-    row.question_type !== "conflicting_info" ||
-    typeof row.question_id !== "string" ||
-    typeof row.question !== "string" ||
-    !Array.isArray(row.source_types) ||
-    !row.source_types.every((source) => typeof source === "string")
-  ) {
-    throw new TypeError("ERB conflict question has an invalid runtime shape");
-  }
-  return {
-    questionId: row.question_id,
-    question: row.question,
-    sourceTypes: [...row.source_types].sort(),
-  };
 }
 
 function tokens(value: string): string[] {
@@ -179,22 +174,13 @@ function subjectHint(runtimeCase: RuntimeConflictCase): string {
   );
 }
 
-async function loadConflictCases(
-  questionsPath: string,
-): Promise<RuntimeConflictCase[]> {
-  const body = await readFile(path.resolve(questionsPath), "utf8");
-  return body
-    .split(/\r?\n/)
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as unknown)
-    .filter(
-      (row) =>
-        row !== null &&
-        typeof row === "object" &&
-        !Array.isArray(row) &&
-        (row as Record<string, unknown>).question_type === "conflicting_info",
-    )
-    .map(toRuntimeConflictCase);
+async function loadConflictCases(manifestPath: string): Promise<RuntimeConflictCase[]> {
+  const body = await readFile(path.resolve(manifestPath), "utf8");
+  const manifest = parseRuntimeManifest(JSON.parse(body) as unknown);
+  if (manifest.promptVersion !== promptVersion) {
+    throw new TypeError("Runtime manifest prompt version does not match extractor");
+  }
+  return manifest.cases;
 }
 
 async function loadDocuments(documentsPath: string): Promise<CandidateDocument[]> {
@@ -241,7 +227,7 @@ async function main(): Promise<void> {
   const outputPath = path.resolve(options.output);
   const runtimeModel = qvacRuntimeModel(model);
   const [runtimeCases, documents, cache] = await Promise.all([
-    loadConflictCases(options.questions),
+    loadConflictCases(options.manifest),
     loadDocuments(options.documents),
     loadExistingCache(outputPath),
   ]);
@@ -249,7 +235,11 @@ async function main(): Promise<void> {
   const cases = [];
 
   for (const runtimeCase of runtimeCases.slice(0, options.limit)) {
-    const candidates = rankCandidateDocuments(runtimeCase, documents, 2);
+    const candidates = rankCandidateDocuments(
+      runtimeCase,
+      documents,
+      runtimeCase.maximumDocuments,
+    );
     const extractions: ExtractionRecord[] = [];
     for (const document of candidates) {
       const cacheKey = stableId("qvac_cache", {
@@ -265,7 +255,7 @@ async function main(): Promise<void> {
       }
       const started = performance.now();
       try {
-        const result = await client.extractConflictObservation({
+        const request = {
           questionId: runtimeCase.questionId,
           question: runtimeCase.question,
           sourceObjectId: document.sourceObjectId,
@@ -274,7 +264,9 @@ async function main(): Promise<void> {
           sourceTitle: document.title,
           sourceText: document.body,
           subjectHint: subjectHint(runtimeCase),
-        });
+        };
+        assertNoEvaluationLabels(request);
+        const result = await client.extractConflictObservation(request);
         extractions.push({
           cacheKey,
           questionId: runtimeCase.questionId,
@@ -312,7 +304,7 @@ async function main(): Promise<void> {
       questionDigest: sha256(runtimeCase.question),
       candidateSelection: {
         algorithm: "source-filtered-lexical-v1",
-        maximumDocuments: 2,
+        maximumDocuments: runtimeCase.maximumDocuments,
         selectedSourceObjectIds: candidates.map(
           (candidate) => candidate.sourceObjectId,
         ),
@@ -340,7 +332,7 @@ async function main(): Promise<void> {
     },
     input: {
       documentsPath: path.resolve(options.documents),
-      questionsPath: path.resolve(options.questions),
+      manifestPath: path.resolve(options.manifest),
       documentCount: documents.length,
       questionLimit: options.limit,
     },

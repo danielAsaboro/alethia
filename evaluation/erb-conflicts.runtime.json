@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "promptVersion": "conflict-observation-v7",
+  "cases": [
+    { "questionId": "qst_0411", "question": "On Streamly AI's dedicated pool dp-132-usw, what % of interactive burst credits should be reserved exclusively for priority=high routes?", "questionType": "conflicting_info", "sourceTypes": ["google_drive", "jira"], "maximumDocuments": 2 },
+    { "questionId": "qst_0412", "question": "For extraction, what price-normalization correctness is reported at temp=0.0 with strict JSON + canonicalization, and what earlier % is it compared to?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0413", "question": "Who approves terminating STALE-ORPHAN test instances after the 72h grace window-infra manager or cost-ops?", "questionType": "conflicting_info", "sourceTypes": ["jira"], "maximumDocuments": 2 },
+    { "questionId": "qst_0414", "question": "INC-9821: was the degraded GPU node an OOM or intermittent driver/kernel launch stalls?", "questionType": "conflicting_info", "sourceTypes": ["gmail", "jira"], "maximumDocuments": 2 },
+    { "questionId": "qst_0415", "question": "What must `--deterministic true` enforce in the eval runner (decoding settings)?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "slack"], "maximumDocuments": 2 },
+    { "questionId": "qst_0416", "question": "Copperfield Nimbus Dedicated sizing: latest baseline/growth/peak QPS and peak concurrent chat sessions?", "questionType": "conflicting_info", "sourceTypes": ["google_drive", "hubspot"], "maximumDocuments": 2 },
+    { "questionId": "qst_0417", "question": "What does Redwood Private on-prem recommend for signing backup manifests?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "fireflies"], "maximumDocuments": 2 },
+    { "questionId": "qst_0418", "question": "In the SLO→customer impact classifier, what score ranges map to Tiers 1-4 in v2, and what were the previous thresholds?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "github"], "maximumDocuments": 2 },
+    { "questionId": "qst_0419", "question": "What is the API endpoint to start a Unified Capacity Transition migration?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0420", "question": "For EXP-002 (eu-west→us-east), what egress cost rate and measurement basis does the cost penalty catalog use?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0421", "question": "Default TTL for the cross-account GPU warm-pool handoff handshake token?", "questionType": "conflicting_info", "sourceTypes": ["confluence"], "maximumDocuments": 2 },
+    { "questionId": "qst_0422", "question": "How do audit log exports access records older than the retention cutoff (super-admin override vs legal hold)?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "linear"], "maximumDocuments": 2 },
+    { "questionId": "qst_0423", "question": "For the office keycard audit, how many months of access logs should we export?", "questionType": "conflicting_info", "sourceTypes": ["jira", "linear"], "maximumDocuments": 2 },
+    { "questionId": "qst_0424", "question": "For the Interactive Latency Canvas, what are the current prompt_len_bucket cutoffs (short/medium/long)?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "linear"], "maximumDocuments": 2 },
+    { "questionId": "qst_0425", "question": "In the Deterministic Playback Manifest v1, how is manifest signing/integrity represented (signature vs integrity fields)?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0426", "question": "What are the automated rollback trigger thresholds (safety sentinel, composite quality, business KPI) in the Optimize cohort-driven gates PRD?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "linear"], "maximumDocuments": 2 },
+    { "questionId": "qst_0427", "question": "ClearEdge 2027 pilot: final po_fingerprint format and weekly invoice delivery time?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "gmail"], "maximumDocuments": 2 },
+    { "questionId": "qst_0428", "question": "What monthly token volume discount breakpoints apply for Hosted pricing in the enterprise playbook?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0429", "question": "Do I need to set enable_tool_signal for tool-signal in the Responses v9 OpenAI-compat streaming bridge?", "questionType": "conflicting_info", "sourceTypes": ["github", "google_drive"], "maximumDocuments": 2 },
+    { "questionId": "qst_0430", "question": "Does the Hosted AWS Marketplace SKU support customer-managed KMS keys (BYOK)?", "questionType": "conflicting_info", "sourceTypes": ["confluence", "fireflies"], "maximumDocuments": 2 }
+  ]
+}

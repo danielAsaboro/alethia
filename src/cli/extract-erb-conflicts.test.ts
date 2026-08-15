@@ -10,8 +10,8 @@ describe("parseExtractErbConflictArgs", () => {
   const complete = [
     "--documents",
     "../resources/EnterpriseRAG-Bench/evidence/conflicts.jsonl",
-    "--questions",
-    "../resources/EnterpriseRAG-Bench/questions.jsonl",
+    "--manifest",
+    "evaluation/erb-conflicts.runtime.json",
     "--output",
     "../submission/evidence/qvac/erb-conflicts.json",
     "--limit",
@@ -22,13 +22,13 @@ describe("parseExtractErbConflictArgs", () => {
     expect(parseExtractErbConflictArgs(complete)).toEqual({
       documents:
         "../resources/EnterpriseRAG-Bench/evidence/conflicts.jsonl",
-      questions: "../resources/EnterpriseRAG-Bench/questions.jsonl",
+      manifest: "evaluation/erb-conflicts.runtime.json",
       output: "../submission/evidence/qvac/erb-conflicts.json",
       limit: 1,
     });
   });
 
-  it.each(["--documents", "--questions", "--output", "--limit"])(
+  it.each(["--documents", "--manifest", "--output", "--limit"])(
     "rejects omission of %s",
     (flag) => {
       const index = complete.indexOf(flag);
@@ -50,25 +50,32 @@ describe("parseExtractErbConflictArgs", () => {
     ).toThrow("Usage: npm run extract:erb-conflicts");
   });
 
-  it("drops gold labels before creating the runtime case", () => {
+  it("accepts only the strict label-free manifest case shape", () => {
     const runtime = toRuntimeConflictCase({
-      question_id: "qst_0411",
-      question_type: "conflicting_info",
+      questionId: "qst_0411",
+      questionType: "conflicting_info",
       question: "What percentage applies to pool dp-132-usw?",
-      source_types: ["jira"],
-      expected_doc_ids: ["secret_doc"],
-      gold_answer: "secret answer",
-      answer_facts: ["secret fact"],
+      sourceTypes: ["jira"],
+      maximumDocuments: 2,
     });
 
     expect(runtime).toEqual({
       questionId: "qst_0411",
       question: "What percentage applies to pool dp-132-usw?",
+      questionType: "conflicting_info",
       sourceTypes: ["jira"],
+      maximumDocuments: 2,
     });
-    expect(JSON.stringify(runtime)).not.toMatch(
-      /expected_doc_ids|gold_answer|answer_facts|secret/,
-    );
+    expect(() =>
+      toRuntimeConflictCase({
+        questionId: "qst_0411",
+        questionType: "conflicting_info",
+        question: "What percentage applies?",
+        sourceTypes: ["jira"],
+        maximumDocuments: 2,
+        gold_answer: "secret answer",
+      }),
+    ).toThrow(/evaluation label|invalid runtime shape/i);
   });
 
   it("ranks candidates from question and source text without gold IDs", () => {
@@ -76,7 +83,9 @@ describe("parseExtractErbConflictArgs", () => {
       {
         questionId: "qst_0411",
         question: "What burst credit percentage applies to dp-132-usw?",
+        questionType: "conflicting_info",
         sourceTypes: ["jira"],
+        maximumDocuments: 2,
       },
       [
         {
