@@ -306,6 +306,46 @@ describe("promoteAcceptedConflict", () => {
     expect(result).toMatchObject({ status: "resolved", winningValue: "cost-ops" });
   });
 
+  it("ranks explicit final requirements above incidental update wording in negotiations", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_final_requirements",
+      question: "What is the final identifier format and delivery time?",
+      accepted: [
+        extraction({
+          cacheKey: "final",
+          sourceObjectId: "src-final",
+          sourceNativeId: "final-spec",
+          sourceTitle: "Customer 2027 billing requirements",
+          observation: {
+            subject: "billing",
+            predicate: "conflict_answer",
+            value: "SHA-256; Tuesday 07:00",
+            evidenceQuote: "Identifier convention (final): requires exactly SHA-256. Delivery SLA (final): Tuesday 07:00.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "negotiation",
+          sourceObjectId: "src-negotiation",
+          sourceNativeId: "email-thread",
+          sourceTitle: "Identifier and delivery negotiation",
+          observation: {
+            subject: "billing",
+            predicate: "conflict_answer",
+            value: "SHA-1; Monday 08:00",
+            evidenceQuote: "We previously discussed the current schema. Please send an updated sample using SHA-1 and Monday 08:00.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "SHA-256; Tuesday 07:00",
+    });
+  });
+
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",

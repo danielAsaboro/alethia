@@ -108,19 +108,28 @@ function precedenceScore(
     /\bnow\b|\bupdated\b|\bcurrent\b|effective|finalized|post-merge/i.test(quote)
       ? 3
       : 0;
+  const explicitFinalRequirements =
+    /\b(?:requirements?|convention|guidance|sla)\b[^\n]{0,30}\bfinal(?:ized)?\b|\bfinal(?:ized)?\b[^\n]{0,40}\b(?:requirements?|convention|guidance|sla)\b|\brequires\b[^\n]{0,12}\bexactly\b/i.test(
+      quote,
+    )
+      ? 10
+      : 0;
   const titleCurrent =
     (/post-merge/i.test(title) ? 4 : 0) +
     (/\bcurrent\b|\bfinal\b|\b2026\b|\bv\d+\b/i.test(title) ? 2 : 0);
   const titleDraft = /draft|scratchpad|meeting|\b2025\b|initial/i.test(title)
     ? -2
     : 0;
+  const negotiationDraft = /negotiat|proposal|email\s+thread/i.test(title) ? -3 : 0;
   return (
     lifecycleScore +
     explicitSupersession +
     latestMarker +
     currentMarker +
+    explicitFinalRequirements +
     titleCurrent +
     titleDraft +
+    negotiationDraft +
     queryAnchorScore(question, quote)
   );
 }
