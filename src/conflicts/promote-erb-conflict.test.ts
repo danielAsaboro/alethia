@@ -161,6 +161,47 @@ describe("promoteAcceptedConflict", () => {
     });
   });
 
+  it("uses explicit earlier-language over a same-lifecycle suggestion", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_current_cutoffs",
+      question: "What are the current prompt length bucket cutoffs?",
+      accepted: [
+        extraction({
+          cacheKey: "current-cutoffs",
+          sourceObjectId: "src-current",
+          sourceNativeId: "current",
+          observation: {
+            subject: "latency-canvas",
+            predicate: "conflict_answer",
+            value: "short <128, medium 128-1024, long >1024",
+            evidenceQuote:
+              "The buckets are short <128, medium 128-1024, long >1024. Earlier character-based buckets produced inconsistent cohorting.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "suggested-cutoffs",
+          sourceObjectId: "src-suggested",
+          sourceNativeId: "suggested",
+          observation: {
+            subject: "latency-canvas",
+            predicate: "conflict_answer",
+            value: "short <64, medium 64-512, long >512",
+            evidenceQuote:
+              "Suggest storing prompt_len_bucket as short <64, medium 64-512, long >512.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "short <128, medium 128-1024, long >1024",
+      conflict: { resolution: "left", policyId: "policy_grounded_supersession_v2" },
+    });
+  });
+
   it("uses the newer grounded ISO date when the question asks for the latest value", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_latest",

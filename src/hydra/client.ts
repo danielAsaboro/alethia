@@ -798,9 +798,15 @@ export class HydraRepository {
         payloadJson: JSON.stringify(edge.properties),
       }));
       for (const chunk of chunkRows(rows)) {
+        const parameters = type === "DECIDED_BY"
+          ? {
+              rows: chunk,
+              reconciliationAttempt: randomUUID(),
+            }
+          : { rows: chunk };
         await this.query(
           `UNWIND $rows AS row MATCH (a:${sourceLabel} {id: row.sourceId}), (b:${targetLabel} {id: row.targetId}) MERGE (a)-[r:${type} {id: row.id}]->(b) SET r.logical_id = row.logicalId, r.payload_json = row.payloadJson`,
-          { rows: chunk },
+          parameters,
         );
       }
     }

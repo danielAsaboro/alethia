@@ -100,7 +100,7 @@ function precedenceScore(
     unknown: 0,
   }[extraction.observation.lifecycle];
   const explicitSupersession =
-    /correct(?:ion|ed)|deprecated|replaced|supersed|outdated|old doc|\bwas\s+(?:\d|previous|formerly)|previous(?:ly)?/i.test(quote)
+    /correct(?:ion|ed)|deprecated|replaced|supersed|outdated|old doc|\bwas\s+(?:\d|previous|formerly)|previous(?:ly)?|\bearlier\b/i.test(quote)
       ? 5
       : 0;
   const latestMarker = /\blatest\b|\bmost recent\b/i.test(quote) ? 6 : 0;
@@ -124,6 +124,9 @@ function precedenceScore(
   const plannedFuture = /\bplanned\b|\bfuture\s+(?:product\s+)?release\b/i.test(quote)
     ? -5
     : 0;
+  const suggestion = /\b(?:suggest|recommend)(?:s|ed|ing)?\b/i.test(quote)
+    ? -3
+    : 0;
   return (
     lifecycleScore +
     explicitSupersession +
@@ -134,6 +137,7 @@ function precedenceScore(
     titleDraft +
     negotiationDraft +
     plannedFuture +
+    suggestion +
     queryAnchorScore(question, quote)
   );
 }
