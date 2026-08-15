@@ -203,3 +203,84 @@ describe("HydraRepository.findNativePaths", () => {
     ).rejects.toThrow(TypeError);
   });
 });
+
+describe("HydraRepository.findNativeMultiPaths", () => {
+  it("runs directed label-distinct indexed pairs in one strong MSpaths request", async () => {
+    const pairs = [
+      ["source_term_file", "ontology_file_owner"],
+      ["source_term_opportunity", "ontology_opportunity_owner"],
+    ] as const;
+    const rows = pairs.map(([source, target], index) => [
+      {
+        type: "path",
+        value: {
+          nodes: [
+            { id: hydraIntId(source), labels: ["SourceSchemaTerm"], properties: { logical_id: taggedString(source) } },
+            { id: hydraIntId(target), labels: ["OntologyTerm"], properties: { logical_id: taggedString(target) } },
+          ],
+          relationships: [{
+            id: 200 + index,
+            edge_type: "MAPS_TO",
+            src: hydraIntId(source),
+            dst: hydraIntId(target),
+            properties: { logical_id: taggedString(`maps-${index}`) },
+          }],
+        },
+      },
+      { type: "integer", value: 1 },
+      { type: "integer", value: 0 },
+    ]);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      query_id: "native-multi-query-1",
+      columns: ["path", "pathWeight", "pathCost"],
+      rows,
+      read_epoch: 1230,
+      bookmark: "sgk:1:default:1230",
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await repository().findNativeMultiPaths({
+      sourceLabel: "SourceSchemaTerm",
+      sourceLogicalIds: pairs.map(([source]) => source),
+      targetLabel: "OntologyTerm",
+      targetLogicalIds: pairs.map(([, target]) => target),
+      relationshipTypes: ["MAPS_TO"],
+      maxLength: 1,
+      pathCount: 1,
+    });
+
+    expect(result).toMatchObject({
+      operation: "algo.MSpaths",
+      consistency: "strong",
+      queryId: "native-multi-query-1",
+      pairCount: 2,
+      pathCount: 2,
+      roundTrips: 1,
+    });
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      query: string;
+      parameters: Record<string, unknown>;
+      consistency: string;
+    };
+    expect(request.query).toContain("CALL algo.MSpaths");
+    expect(request.query).toContain("pairwise: false");
+    expect(request.query).toContain("sourceValues: ['source_term_file', 'source_term_opportunity']");
+    expect(request.parameters).not.toHaveProperty("sources");
+    expect(request.consistency).toBe("strong");
+  });
+
+  it("rejects selector injection before issuing a request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(repository().findNativeMultiPaths({
+      sourceLabel: "SourceSchemaTerm",
+      sourceLogicalIds: ["safe", "bad' selector"],
+      targetLabel: "OntologyTerm",
+      targetLogicalIds: ["target-a", "target-b"],
+      relationshipTypes: ["MAPS_TO"],
+      maxLength: 1,
+      pathCount: 1,
+    })).rejects.toThrow(/unsafe selector/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

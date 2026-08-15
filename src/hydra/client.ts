@@ -213,6 +213,42 @@ export interface HydraPathProof {
   }>;
 }
 
+export interface NativeMultiPathInput {
+  sourceLabel: GraphLabel;
+  sourceLogicalIds: string[];
+  targetLabel: GraphLabel;
+  targetLogicalIds: string[];
+  relationshipTypes: GraphRelationshipType[];
+  maxLength: number;
+  pathCount: number;
+}
+
+export interface HydraMultiPathResult {
+  operation: "algo.MSpaths";
+  consistency: "strong";
+  queryId: string;
+  readEpoch: number | null;
+  bookmark: string | null;
+  latencyMs: number;
+  roundTrips: 1;
+  pairCount: number;
+  pathCount: number;
+  paths: HydraPathProof[];
+}
+
+export interface ClientPathBaseline {
+  found: boolean;
+  latencyMs: number;
+  roundTrips: number;
+  queryIds: string[];
+  pathLogicalIds: string[];
+}
+
+export interface ResolvedSourceEntity {
+  sourceLogicalId: string;
+  entityLogicalId: string;
+}
+
 type HydraConsistency = "causal" | "strong";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -392,6 +428,199 @@ export class HydraRepository {
     );
 
     return result.rows.map((row) => this.parseNativePath(row, result, input));
+  }
+
+  async findNativeMultiPaths(
+    input: NativeMultiPathInput,
+  ): Promise<HydraMultiPathResult> {
+    if (
+      !labels.includes(input.sourceLabel) ||
+      !labels.includes(input.targetLabel) ||
+      input.sourceLogicalIds.length < 2 ||
+      input.sourceLogicalIds.length !== input.targetLogicalIds.length ||
+      new Set(input.sourceLogicalIds).size !== input.sourceLogicalIds.length ||
+      new Set(input.targetLogicalIds).size !== input.targetLogicalIds.length ||
+      input.sourceLogicalIds.some((id) => !id) ||
+      input.targetLogicalIds.some((id) => !id)
+    ) {
+      throw new TypeError("Native multi-path selectors must contain matching unique pairs");
+    }
+    if (
+      !Number.isInteger(input.maxLength) ||
+      input.maxLength < 1 ||
+      input.maxLength > 16 ||
+      !Number.isInteger(input.pathCount) ||
+      input.pathCount < 1 ||
+      input.pathCount > 100
+    ) {
+      throw new TypeError("Native multi-path bounds are invalid");
+    }
+    const allowedTypes = [...new Set(input.relationshipTypes)];
+    if (
+      allowedTypes.length === 0 ||
+      allowedTypes.some((type) => !relationshipTypes.includes(type))
+    ) {
+      throw new TypeError("Native multi-path relationshipTypes must be supported");
+    }
+    const relationshipLiteral = allowedTypes.map((type) => `'${type}'`).join(", ");
+    const selectorLiteral = (value: string): string => {
+      if (!/^[A-Za-z0-9_.:\/-]+$/.test(value)) {
+        throw new TypeError("Native multi-path logical IDs contain unsafe selector characters");
+      }
+      return `'${value}'`;
+    };
+    const sourceSelectors = input.sourceLogicalIds
+      .map(selectorLiteral)
+      .join(", ");
+    const targetSelectors = input.targetLogicalIds
+      .map(selectorLiteral)
+      .join(", ");
+    const result = await this.request(
+      `CALL algo.MSpaths({sourceLabel: '${input.sourceLabel}', sourceProperty: 'logical_id', sourceValues: [${sourceSelectors}], targetLabel: '${input.targetLabel}', targetProperty: 'logical_id', targetValues: [${targetSelectors}], pairwise: false, relTypes: [${relationshipLiteral}], maxLen: $maxLength, relDirection: 'outgoing', pathCount: $pathCount, resultLimit: $resultLimit}) YIELD path, pathWeight, pathCost RETURN path, pathWeight, pathCost`,
+      {
+        maxLength: input.maxLength,
+        pathCount: input.pathCount,
+        resultLimit: input.sourceLogicalIds.length * input.pathCount,
+      },
+      "strong",
+    );
+    const pairs = new Map(
+      input.sourceLogicalIds.map((source, index) => [source, input.targetLogicalIds[index]!]),
+    );
+    const paths = result.rows.map((row) => {
+      if (!isRecord(row.path) || !Array.isArray(row.path.nodes)) {
+        throw new TypeError("HydraDB native multi-path result is malformed");
+      }
+      const rawNodes = row.path.nodes;
+      const first = rawNodes[0];
+      const last = rawNodes[rawNodes.length - 1];
+      const source = isRecord(first) ? logicalIdFromProperties(first.properties) : null;
+      const target = isRecord(last) ? logicalIdFromProperties(last.properties) : null;
+      if (!source || !target || pairs.get(source) !== target) {
+        throw new TypeError("HydraDB native multi-path endpoints do not match indexed pairs");
+      }
+      return this.parseNativePath(row, result, {
+        sourceLogicalId: source,
+        targetLogicalId: target,
+        relationshipTypes: allowedTypes,
+        maxLength: input.maxLength,
+        pathCount: input.pathCount,
+      });
+    });
+    const returnedPairs = new Set(
+      paths.map((path) =>
+        `${path.nodes[0]?.logicalId ?? ""}\u0000${path.nodes[path.nodes.length - 1]?.logicalId ?? ""}`,
+      ),
+    );
+    const expectedPairs = input.sourceLogicalIds.map(
+      (source, index) => `${source}\u0000${input.targetLogicalIds[index]!}`,
+    );
+    if (expectedPairs.some((pair) => !returnedPairs.has(pair))) {
+      throw new TypeError("HydraDB native multi-path omitted an indexed endpoint pair");
+    }
+    return {
+      operation: "algo.MSpaths",
+      consistency: "strong",
+      queryId: result.queryId,
+      readEpoch: result.readEpoch,
+      bookmark: result.bookmark,
+      latencyMs: result.latencyMs,
+      roundTrips: 1,
+      pairCount: input.sourceLogicalIds.length,
+      pathCount: paths.length,
+      paths,
+    };
+  }
+
+  async findClientPathBaseline(input: NativePathInput): Promise<ClientPathBaseline> {
+    if (
+      !input.sourceLogicalId ||
+      !input.targetLogicalId ||
+      input.sourceLogicalId === input.targetLogicalId ||
+      !Number.isInteger(input.maxLength) ||
+      input.maxLength < 1 ||
+      input.maxLength > 16
+    ) {
+      throw new TypeError("Client path baseline endpoints or bounds are invalid");
+    }
+    const allowedTypes = [...new Set(input.relationshipTypes)];
+    if (
+      allowedTypes.length === 0 ||
+      allowedTypes.some((type) => !relationshipTypes.includes(type))
+    ) {
+      throw new TypeError("Client path baseline relationshipTypes must be supported");
+    }
+    const started = performance.now();
+    const queryIds: string[] = [];
+    const visited = new Set([input.sourceLogicalId]);
+    let frontier = [{ logicalId: input.sourceLogicalId, path: [input.sourceLogicalId] }];
+    for (let depth = 0; depth < input.maxLength; depth += 1) {
+      const next: typeof frontier = [];
+      for (const current of frontier) {
+        for (const type of allowedTypes) {
+          const result = await this.request(
+            `MATCH (a {id: $source})-[r:${type}]->(b) RETURN b.logical_id AS targetLogicalId`,
+            { source: hydraIntId(current.logicalId) },
+            "strong",
+          );
+          queryIds.push(result.queryId);
+          for (const row of result.rows) {
+            const target = row.targetLogicalId;
+            if (typeof target !== "string" || !target) {
+              throw new TypeError("HydraDB client baseline returned an invalid target");
+            }
+            const path = [...current.path, target];
+            if (target === input.targetLogicalId) {
+              return {
+                found: true,
+                latencyMs: performance.now() - started,
+                roundTrips: queryIds.length,
+                queryIds,
+                pathLogicalIds: path,
+              };
+            }
+            if (!visited.has(target)) {
+              visited.add(target);
+              next.push({ logicalId: target, path });
+            }
+          }
+        }
+      }
+      frontier = next;
+      if (frontier.length === 0) break;
+    }
+    return {
+      found: false,
+      latencyMs: performance.now() - started,
+      roundTrips: queryIds.length,
+      queryIds,
+      pathLogicalIds: [],
+    };
+  }
+
+  async findResolvedEntitiesForSources(
+    sourceLogicalIds: string[],
+  ): Promise<ResolvedSourceEntity[]> {
+    const sources = [...new Set(sourceLogicalIds)].sort();
+    if (sources.length === 0 || sources.some((logicalId) => !logicalId)) {
+      throw new TypeError("Resolved-entity source IDs must be non-empty");
+    }
+    const result: ResolvedSourceEntity[] = [];
+    for (const sourceLogicalId of sources) {
+      const rows = await this.query(
+        "MATCH (s {id: $source})-[:RESOLVES_TO]->(e) RETURN e.logical_id AS entityLogicalId",
+        { source: hydraIntId(sourceLogicalId) },
+      );
+      if (rows.length !== 1 || typeof rows[0]?.entityLogicalId !== "string") {
+        throw new TypeError("HydraDB returned an invalid source/entity resolution");
+      }
+      result.push({ sourceLogicalId, entityLogicalId: rows[0].entityLogicalId });
+    }
+    return result.sort(
+      (left, right) =>
+        left.sourceLogicalId.localeCompare(right.sourceLogicalId) ||
+        left.entityLogicalId.localeCompare(right.entityLogicalId),
+    );
   }
 
   private parseNativePath(

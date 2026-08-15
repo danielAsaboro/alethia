@@ -23,6 +23,8 @@
     "qvac:smoke": "tsx src/cli/qvac-smoke.ts",
     "extract:erb-conflicts": "tsx src/cli/extract-erb-conflicts.ts",
     "evaluate:erb-conflicts": "tsx src/cli/evaluate-erb-conflicts.ts",
+    "measure:hydra-leverage": "tsx src/cli/measure-hydra-leverage.ts",
+    "measure:ablations": "tsx src/cli/measure-policy-ablations.ts",
     "adjudicate:erb-conflict": "tsx src/cli/adjudicate-erb-conflict.ts",
     "discover:erb-alignment": "tsx src/cli/discover-erb-alignment.ts",
     "audit:herb-identities": "tsx src/cli/audit-herb-identities.ts",
