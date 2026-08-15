@@ -229,6 +229,34 @@ describe("constrained conflict evidence selection", () => {
     expect(candidates[0]?.quote).toMatch(/>= 85[\s\S]*70-84[\s\S]*50-69[\s\S]*< 50/);
   });
 
+  it("keeps breakpoint values with their nearby pricing confirmation caveat", () => {
+    const sourceText = [
+      "Hosted pricing framework:",
+      "- Commercial ranges are illustrative; confirm with Sales Ops + Finance.",
+      "- POC guidance.",
+      "- Dedicated guidance.",
+      "- Private guidance.",
+      "- Contract guidance.",
+      "- Approval guidance.",
+      "- Regional guidance.",
+      "- Billing guidance.",
+      "- Renewal guidance.",
+      "- Discount guardrails:",
+      "  - Hosted monthly token breakpoints: 250k, 2M, and 10M.",
+      "  - Older breakpoints 100k, 1M, and 5M are outdated.",
+      "- End pricing section.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What monthly token volume discount breakpoints apply for Hosted pricing?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates[0]?.quote).toMatch(
+      /confirm with Sales Ops \+ Finance[\s\S]*250k, 2M, and 10M/i,
+    );
+  });
+
   it("prioritizes the rate together with its explicit measurement basis", () => {
     const sourceText = [
       "Current measurement basis:",

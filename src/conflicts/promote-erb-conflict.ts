@@ -190,7 +190,7 @@ export function promoteAcceptedConflict(input: {
   const observations: ClaimObservation[] = accepted.map((extraction) => ({
     id: stableId("observation", {
       cacheKey: extraction.cacheKey,
-      promptVersion: "conflict-observation-v15",
+      promptVersion: "conflict-observation-v16",
     }),
     claimCandidate: {
       id: `candidate_${extraction.cacheKey}`,
@@ -203,11 +203,11 @@ export function promoteAcceptedConflict(input: {
       sourceObjectId: extraction.sourceObjectId,
       sourceSystem: extraction.sourceSystem,
       extractionMethod: "qvac",
-      extractorVersion: "qvac:sourcetruce-extractor:v15",
+      extractorVersion: "qvac:sourcetruce-extractor:v16",
     },
     evidenceQuote: extraction.observation.evidenceQuote,
     method: "qvac",
-    extractorVersion: "qvac:sourcetruce-extractor:v15",
+    extractorVersion: "qvac:sourcetruce-extractor:v16",
   }));
   const consolidated = consolidateClaims(observations);
   const adjudicationClaims = accepted.map((extraction): AdjudicationClaim => {

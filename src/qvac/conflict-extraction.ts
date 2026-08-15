@@ -118,7 +118,7 @@ export function buildGroundingCandidates(input: {
     .filter((segment) => segment.length >= 12);
   const segments = [...baseSegments];
   for (let index = 0; index < rawLines.length; index += 1) {
-    for (const width of [2, 3, 4, 5, 6, 8, 10]) {
+    for (const width of [2, 3, 4, 5, 6, 8, 10, 12]) {
       const lines = rawLines.slice(index, index + width);
       const quote = lines.join(lineSeparator).trim();
       if (
@@ -217,12 +217,24 @@ export function buildGroundingCandidates(input: {
             /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b[^\n]{0,40}\b\d{1,2}:\d{2}\b/i,
           ].filter((pattern) => pattern.test(quote)).length
         : 0;
+      const breakpointCaveat = /\bbreakpoints?\b/i.test(input.question) &&
+        /\bconfirm\b[^\n]{0,80}\b(?:sales\s+ops|finance)\b/i.test(quote)
+        ? 10
+        : 0;
+      const breakpointAnswer = /\bbreakpoints?\b/i.test(input.question) &&
+        /\bhosted\b/i.test(quote) &&
+        /\b(?:breaks?|breakpoints?)\b/i.test(quote) &&
+        /\b\d+(?:\.\d+)?[kmb]?\b/i.test(quote)
+        ? 12
+        : 0;
       const score =
         overlap * 5 +
         Math.min(4, listLines) +
         Math.min(12, numericRanges * 3) +
         measurementBasisSignals * 4 +
         identifierFormatSignals * 4 +
+        breakpointCaveat +
+        breakpointAnswer +
         (/\d/.test(quote) ? 2 : 0) +
         (/\bas of\b|\bv\d+(?:\.\d+)+\+?/i.test(quote) ? 6 : 0) +
         (/%|percent|percentage/i.test(quote) ? 3 : 0) +
