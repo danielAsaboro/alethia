@@ -470,6 +470,9 @@ export function freezeConflictRuntime(input: {
       const winningValueIsQuote = winningQuotes.some(
         (quote) => quote.trim() === promotion.winningValue.trim(),
       );
+      const nonControllingValues = values.filter(
+        (value) => value !== promotion.winningValue,
+      );
       const answer = [
         winningValueIsQuote || promotion.winningValue.length > 500
           ? "Grounded answer is established by the controlling evidence below."
@@ -478,7 +481,7 @@ export function freezeConflictRuntime(input: {
           ? `Controlling evidence: ${conciseWinningQuotes.join(" ")}`
           : "",
         conciseOtherQuotes.length
-          ? `Superseded or conflicting evidence retained for audit only; it is explicitly not the current answer: ${conciseOtherQuotes.join(" ")}`
+          ? `Superseded or conflicting evidence retained for audit only. Earlier/outdated or otherwise non-controlling value—not the current answer: ${nonControllingValues.join(" or ")}. Supporting audit excerpt: ${conciseOtherQuotes.join(" ")}`
           : "",
       ]
         .filter(Boolean)
