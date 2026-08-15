@@ -1,4 +1,10 @@
-export type JudgeCaseKind = "conflict" | "alignment" | "identity" | "knowledge_boundary";
+export type JudgeCaseKind =
+  | "conflict"
+  | "alignment"
+  | "identity"
+  | "knowledge_boundary"
+  | "simple_lookup"
+  | "multi_hop";
 
 export interface JudgeCase {
   id: string;
@@ -53,6 +59,33 @@ const cases: JudgeCase[] = [
     title: "Admit uncertainty",
     question: "What is this employee's favorite lunch?",
     summary: "The graph has complete role data, but no coverage for personal preferences.",
+    dataset: "Salesforce HERB",
+    version: "coverage-v1",
+  },
+  {
+    id: "charlie-davis-role",
+    kind: "simple_lookup",
+    title: "Retrieve a canonical fact",
+    question: "What is Charlie Davis's role?",
+    summary: "Resolve the employee, retrieve the role claim, and preserve its source evidence.",
+    dataset: "Salesforce HERB",
+    version: "herb-role-v1",
+  },
+  {
+    id: "actiongenie-team",
+    kind: "multi_hop",
+    title: "Traverse a product team",
+    question: "Who works on the ActionGenie product team?",
+    summary: "Traverse product membership, each canonical employee, their name claim, and source evidence.",
+    dataset: "Salesforce HERB",
+    version: "herb-team-v1",
+  },
+  {
+    id: "charlie-davis-lagos",
+    kind: "knowledge_boundary",
+    title: "Prove a fact is not found",
+    question: "Is Charlie Davis located in Lagos?",
+    summary: "Complete employee-location coverage makes the missing Lagos claim decidable while retaining the related Remote evidence.",
     dataset: "Salesforce HERB",
     version: "coverage-v1",
   },

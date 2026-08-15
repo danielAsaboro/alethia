@@ -1,6 +1,36 @@
 import { describe, expect, it } from "vitest";
 import type { CaseRepository } from "./run-case";
 import { runJudgeCase } from "./run-case";
+import type { HydraPathProof, NativePathInput } from "@/hydra/client";
+
+function nativePath(input: NativePathInput): HydraPathProof {
+  const relationshipType = input.relationshipTypes[0] ?? "ASSERTS";
+  return {
+    operation: "algo.SPpaths",
+    consistency: "strong",
+    queryId: `query-${input.sourceLogicalId}-${input.targetLogicalId}`,
+    readEpoch: 123,
+    bookmark: "sgk:test:123",
+    latencyMs: 4.2,
+    roundTrips: 1,
+    pathLength: 1,
+    pathWeight: 1,
+    pathCost: 0,
+    nodes: [
+      { id: 1, labels: ["Entity"], logicalId: input.sourceLogicalId },
+      { id: 2, labels: ["SourceObject"], logicalId: input.targetLogicalId },
+    ],
+    relationships: [
+      {
+        id: 3,
+        type: relationshipType,
+        sourceId: 1,
+        targetId: 2,
+        logicalId: "edge-test",
+      },
+    ],
+  };
+}
 
 function repository(): CaseRepository {
   return {
@@ -13,6 +43,9 @@ function repository(): CaseRepository {
     findIdentityDecision: async () => null,
     entityExists: async () => true,
     findCoverageSlices: async () => [],
+    findClaimEvidence: async () => [],
+    findTeamMemberEvidence: async () => [],
+    findNativePaths: async (input) => [nativePath(input)],
   };
 }
 
@@ -174,5 +207,156 @@ describe("runJudgeCase", () => {
     });
 
     await expect(runJudgeCase("david-taylor-collision", unsafe)).rejects.toThrow(/not ready/);
+  });
+
+  it("answers a simple role lookup from canonical Hydra claim evidence", async () => {
+    const live = repository();
+    live.findClaimEvidence = async (_entityId, predicate) =>
+      predicate === "has_role"
+        ? [
+            {
+              claimLogicalId: "claim-role",
+              predicate,
+              object: { kind: "literal", value: "Software Engineer" },
+              sourceLogicalId: "source_object_fa63884437348a11c9312fb9",
+              sourceSystem: "herb",
+              sourceNativeId: "eid_01942cf0",
+            },
+          ]
+        : [];
+
+    const workspace = await runJudgeCase("charlie-davis-role", live);
+    expect(workspace).toMatchObject({
+      verdict: "SUPPORTED",
+      answer: "Software Engineer",
+      graphProof: {
+        operation: "algo.SPpaths",
+        consistency: "strong",
+        roundTrips: 1,
+      },
+    });
+    expect(workspace.evidence).toEqual([
+      {
+        source: "herb · eid_01942cf0",
+        quote: "Software Engineer",
+        value: "Software Engineer",
+      },
+    ]);
+  });
+
+  it("answers the ActionGenie multi-hop lane from 66 distinct members", async () => {
+    const live = repository();
+    live.findTeamMemberEvidence = async () =>
+      Array.from({ length: 66 }, (_, index) => ({
+        entityLogicalId: `member-${index}`,
+        displayName: `Member ${String(index + 1).padStart(2, "0")}`,
+        relationshipClaimId: `team-claim-${index}`,
+        nameClaimId: `name-claim-${index}`,
+        sourceLogicalId: `source-${index}`,
+        sourceSystem: "herb",
+        sourceNativeId: `eid-${index}`,
+      }));
+    live.findCoverageSlices = async () => [
+      {
+        id: "coverage-herb-products",
+        ingestionRunId: "run-herb",
+        sourceSystem: "herb",
+        objectType: "product",
+        predicateFamilies: ["identity", "product_team"],
+        contentScope: "metadata",
+        status: "complete",
+      },
+    ];
+
+    const workspace = await runJudgeCase("actiongenie-team", live);
+    expect(workspace.verdict).toBe("SUPPORTED");
+    expect(workspace.answer).toMatch(/^66 team members:/);
+    expect(workspace.evidence).toHaveLength(66);
+    expect(workspace.graphProof.path).toContain("source-0");
+  });
+
+  it("returns NOT_FOUND for Lagos only when location coverage is complete", async () => {
+    const live = repository();
+    live.findClaimEvidence = async (_entityId, predicate) =>
+      predicate === "located_in"
+        ? [
+            {
+              claimLogicalId: "claim-remote",
+              predicate,
+              object: { kind: "literal", value: "Remote" },
+              sourceLogicalId: "source_object_fa63884437348a11c9312fb9",
+              sourceSystem: "herb",
+              sourceNativeId: "eid_01942cf0",
+              extractionMethod: "deterministic",
+              extractorVersion: "herb-structural-v1",
+            },
+          ]
+        : [];
+    live.findCoverageSlices = async () => [
+      {
+        id: "coverage-herb-employees",
+        ingestionRunId: "run-herb",
+        sourceSystem: "herb",
+        objectType: "employee",
+        predicateFamilies: ["identity", "employment", "role", "location"],
+        contentScope: "metadata",
+        status: "complete",
+      },
+    ];
+
+    const workspace = await runJudgeCase("charlie-davis-lagos", live);
+    expect(workspace).toMatchObject({
+      verdict: "NOT_FOUND",
+      answer: "No Lagos location was found in the completed employee-location coverage.",
+      coverage: { sufficient: true },
+    });
+    expect(workspace.evidence).toEqual([
+      {
+        source: "herb · eid_01942cf0",
+        quote: "Related location evidence: Remote",
+        value: "Remote",
+      },
+    ]);
+  });
+
+  it("changes the Lagos verdict to UNKNOWN when location coverage is incomplete", async () => {
+    const incomplete = repository();
+    incomplete.findClaimEvidence = async () => [];
+    incomplete.findCoverageSlices = async () => [
+      {
+        id: "coverage-herb-employees",
+        ingestionRunId: "run-herb",
+        sourceSystem: "herb",
+        objectType: "employee",
+        predicateFamilies: ["identity", "employment", "role"],
+        contentScope: "metadata",
+        status: "complete",
+      },
+    ];
+
+    const workspace = await runJudgeCase("charlie-davis-lagos", incomplete);
+    expect(workspace.verdict).toBe("UNKNOWN");
+    expect(workspace.coverage.sufficient).toBe(false);
+  });
+
+  it("fails closed when a required native graph proof is absent", async () => {
+    const corrupt = repository();
+    corrupt.findClaimEvidence = async () => [
+      {
+        claimLogicalId: "claim-role",
+        predicate: "has_role",
+        object: { kind: "literal", value: "Software Engineer" },
+        sourceLogicalId: "source_object_fa63884437348a11c9312fb9",
+        sourceSystem: "herb",
+        sourceNativeId: "eid_01942cf0",
+        extractionMethod: "deterministic",
+        extractorVersion: "herb-structural-v1",
+      },
+    ];
+    corrupt.findNativePaths = async () => [];
+
+    await expect(runJudgeCase("charlie-davis-role", corrupt)).rejects.toThrow(
+      /native path/i,
+    );
   });
 });

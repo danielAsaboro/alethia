@@ -2,12 +2,28 @@ import { buildDossier } from "@/application/build-dossier";
 import { getJudgeCase, type JudgeCase } from "@/cases/case-registry";
 import { evaluateCoverage } from "@/coverage/evaluate-coverage";
 import type {
+  GraphClaimEvidence,
   GraphAlignmentDecision,
   GraphConflictDecision,
   GraphIdentityDecision,
   GraphObservationEvidence,
+  HydraPathProof,
   HydraRepository,
 } from "@/hydra/client";
+import type { Claim } from "@/domain/ontology";
+
+export interface GraphProofSummary {
+  operation: "algo.SPpaths";
+  consistency: "strong";
+  queryId: string;
+  readEpoch: number | null;
+  bookmark: string | null;
+  latencyMs: number;
+  roundTrips: 1;
+  pathLength: number;
+  path: string;
+  relationshipTypes: string[];
+}
 
 export interface CaseWorkspace {
   case: JudgeCase;
@@ -19,11 +35,13 @@ export interface CaseWorkspace {
   counterfactual: string;
   traversal: string;
   ablation: { label: string; result: string };
+  graphProof: GraphProofSummary;
 }
 
 export type CaseRepository = Pick<HydraRepository,
   "findObservationEvidence" | "findConflictDecision" | "findAlignmentDecisions" |
-  "findIdentityDecision" | "entityExists" | "findCoverageSlices"
+  "findIdentityDecision" | "entityExists" | "findCoverageSlices" |
+  "findClaimEvidence" | "findTeamMemberEvidence" | "findNativePaths"
 >;
 
 const ids = {
@@ -35,6 +53,8 @@ const ids = {
   opportunityOwnerTerm: "source_term_0354c371ffe861934bed28e6",
   identityDecision: "identity_candidate_decision_cfbaaae570ab4b5c306e83af",
   knowledgeEntity: "entity_90ad19476a96ae677e3c9143",
+  knowledgeSource: "source_object_fa63884437348a11c9312fb9",
+  actionGenieEntity: "entity_6b6402fb266f1c3207c7963d",
 } as const;
 
 function conflictPointers(caseId: string): { entityId: string; conflictId: string } | undefined {
@@ -95,6 +115,64 @@ function acceptedMapping(rows: GraphAlignmentDecision[]): GraphAlignmentDecision
   return decision;
 }
 
+function graphProofSummary(proof: HydraPathProof | undefined): GraphProofSummary {
+  if (!proof) {
+    throw new Error("Required HydraDB native path proof is missing");
+  }
+  const path = proof.nodes
+    .map((node) => node.logicalId ?? (node.labels.join("|") || String(node.id)))
+    .join(" → ");
+  if (!path || proof.pathLength !== proof.relationships.length) {
+    throw new Error("Required HydraDB native path proof is corrupt");
+  }
+  return {
+    operation: proof.operation,
+    consistency: proof.consistency,
+    queryId: proof.queryId,
+    readEpoch: proof.readEpoch,
+    bookmark: proof.bookmark,
+    latencyMs: proof.latencyMs,
+    roundTrips: proof.roundTrips,
+    pathLength: proof.pathLength,
+    path,
+    relationshipTypes: proof.relationships.map((relationship) => relationship.type),
+  };
+}
+
+async function requireGraphProof(
+  repository: CaseRepository,
+  input: Parameters<CaseRepository["findNativePaths"]>[0],
+): Promise<GraphProofSummary> {
+  const paths = await repository.findNativePaths(input);
+  if (paths.length !== 1) {
+    throw new Error("Required HydraDB native path proof is missing or ambiguous");
+  }
+  return graphProofSummary(paths[0]);
+}
+
+function literalClaimValue(evidence: GraphClaimEvidence): string | undefined {
+  return evidence.object.kind === "literal" ? String(evidence.object.value) : undefined;
+}
+
+function targetClaimFromEvidence(
+  evidence: GraphClaimEvidence,
+  subjectEntityId: string,
+): Claim {
+  if (!evidence.extractionMethod || !evidence.extractorVersion) {
+    throw new Error("Target claim is missing extraction provenance in HydraDB");
+  }
+  return {
+    id: evidence.claimLogicalId,
+    subjectEntityId,
+    predicate: evidence.predicate,
+    object: evidence.object,
+    sourceObjectId: evidence.sourceLogicalId,
+    sourceSystem: evidence.sourceSystem,
+    extractionMethod: evidence.extractionMethod,
+    extractorVersion: evidence.extractorVersion,
+  };
+}
+
 export async function runJudgeCase(caseId: string, repository: CaseRepository): Promise<CaseWorkspace> {
   const judgeCase = getJudgeCase(caseId);
   if (!judgeCase) throw new TypeError(`Unknown judge case: ${caseId}`);
@@ -120,10 +198,26 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     if (decision.winningClaimId) {
       const winner = conflictObservations.find((item) => item.claimLogicalId === decision.winningClaimId);
       if (!winner) throw new Error("Winning claim evidence is missing from HydraDB");
-      return conflictWorkspace(judgeCase, conflictObservations, decision, winner);
+      const graphProof = await requireGraphProof(repository, {
+        sourceLogicalId: winner.claimLogicalId,
+        targetLogicalId: winner.sourceLogicalId,
+        relationshipTypes: ["HAS_OBSERVATION", "SUPPORTED_BY"],
+        maxLength: 2,
+        pathCount: 1,
+      });
+      return conflictWorkspace(judgeCase, conflictObservations, decision, winner, graphProof);
     }
     if (decision.resolution === "unresolved") {
-      return disputedWorkspace(judgeCase, conflictObservations, decision);
+      const target = conflictObservations[0];
+      if (!target) throw new Error("Conflict case is not ready in HydraDB");
+      const graphProof = await requireGraphProof(repository, {
+        sourceLogicalId: target.claimLogicalId,
+        targetLogicalId: target.sourceLogicalId,
+        relationshipTypes: ["HAS_OBSERVATION", "SUPPORTED_BY"],
+        maxLength: 2,
+        pathCount: 1,
+      });
+      return disputedWorkspace(judgeCase, conflictObservations, decision, graphProof);
     }
     throw new Error("Conflict case is not ready in HydraDB");
   }
@@ -142,6 +236,13 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     ) {
       throw new Error("Alignment case is not ready in HydraDB");
     }
+    const graphProof = await requireGraphProof(repository, {
+      sourceLogicalId: ids.fileOwnerTerm,
+      targetLogicalId: file.ontologyTermId,
+      relationshipTypes: ["MAPS_TO"],
+      maxLength: 1,
+      pathCount: 1,
+    });
     return {
       case: judgeCase,
       verdict: "SUPPORTED",
@@ -155,6 +256,7 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       counterfactual: "A versioned registry rule with different compatible domains would change the mapping.",
       traversal: "SourceObject → OBSERVED_AS → SourceSchemaTerm → MAPS_TO → OntologyTerm",
       ablation: { label: "Naive field-name mapping", result: "Both become OWNS, erasing file vs opportunity semantics." },
+      graphProof,
     };
   }
 
@@ -169,20 +271,234 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     ) {
       throw new Error("Identity case is not ready in HydraDB");
     }
-    return identityWorkspace(judgeCase, decision);
+    const targetSource = decision.sourceObjectIds[0];
+    if (!targetSource) throw new Error("Identity case is not ready in HydraDB");
+    const graphProof = await requireGraphProof(repository, {
+      sourceLogicalId: ids.identityDecision,
+      targetLogicalId: targetSource,
+      relationshipTypes: ["CONSIDERS"],
+      maxLength: 1,
+      pathCount: 1,
+    });
+    return identityWorkspace(judgeCase, decision, graphProof);
   }
 
-  const [entityExists, slices] = await Promise.all([
+  if (judgeCase.kind === "simple_lookup") {
+    const [entityExists, roleEvidence] = await Promise.all([
+      repository.entityExists(ids.knowledgeEntity),
+      repository.findClaimEvidence(ids.knowledgeEntity, "has_role"),
+    ]);
+    const roleValues = [
+      ...new Set(roleEvidence.map(literalClaimValue).filter((value): value is string => Boolean(value))),
+    ];
+    if (!entityExists || roleEvidence.length === 0 || roleValues.length !== 1) {
+      throw new Error("Simple lookup case is not ready in HydraDB");
+    }
+    const targetEvidence = [...roleEvidence].sort(
+      (left, right) =>
+        left.claimLogicalId.localeCompare(right.claimLogicalId) ||
+        left.sourceLogicalId.localeCompare(right.sourceLogicalId),
+    )[0];
+    if (!targetEvidence) throw new Error("Simple lookup case is not ready in HydraDB");
+    const graphProof = await requireGraphProof(repository, {
+      sourceLogicalId: targetEvidence.claimLogicalId,
+      targetLogicalId: targetEvidence.sourceLogicalId,
+      relationshipTypes: ["SUPPORTED_BY"],
+      maxLength: 1,
+      pathCount: 1,
+    });
+    const answer = roleValues[0];
+    return {
+      case: judgeCase,
+      verdict: "SUPPORTED",
+      answer,
+      evidence: roleEvidence.map((item) => ({
+        source: `${item.sourceSystem} · ${item.sourceNativeId}`,
+        quote: item.evidenceQuote ?? answer,
+        value: literalClaimValue(item),
+      })),
+      decision: {
+        status: "supported",
+        reason: "The resolved employee's canonical role claims agree.",
+      },
+      coverage: {
+        sufficient: true,
+        detail: "A grounded role claim and its canonical HERB source were retrieved.",
+      },
+      counterfactual: "A grounded contradictory role claim would open a conflict instead of silently replacing this answer.",
+      traversal: "Entity → ASSERTS → Claim → SUPPORTED_BY → SourceObject",
+      ablation: {
+        label: "No canonical entity",
+        result: "A name-only lookup could attach another Charlie Davis record's role.",
+      },
+      graphProof,
+    };
+  }
+
+  if (judgeCase.kind === "multi_hop") {
+    const [memberRows, slices] = await Promise.all([
+      repository.findTeamMemberEvidence(ids.actionGenieEntity),
+      repository.findCoverageSlices("herb", "product"),
+    ]);
+    const membersByEntity = new Map<string, (typeof memberRows)[number]>();
+    for (const member of memberRows) {
+      const previous = membersByEntity.get(member.entityLogicalId);
+      if (previous && previous.displayName !== member.displayName) {
+        throw new Error("Multi-hop case has conflicting member identities in HydraDB");
+      }
+      membersByEntity.set(member.entityLogicalId, previous ?? member);
+    }
+    const members = [...membersByEntity.values()].sort(
+      (left, right) =>
+        left.displayName.localeCompare(right.displayName) ||
+        left.entityLogicalId.localeCompare(right.entityLogicalId),
+    );
+    const coverage = evaluateCoverage(
+      {
+        slices: [
+          {
+            sourceSystem: "herb",
+            objectType: "product",
+            predicateFamily: "product_team",
+            contentScope: "metadata",
+          },
+        ],
+      },
+      slices,
+    );
+    if (members.length === 0 || !coverage.sufficient) {
+      throw new Error("Multi-hop case is not ready in HydraDB");
+    }
+    const targetSource = members[0]?.sourceLogicalId;
+    if (!targetSource) throw new Error("Multi-hop case is not ready in HydraDB");
+    const graphProof = await requireGraphProof(repository, {
+      sourceLogicalId: ids.actionGenieEntity,
+      targetLogicalId: targetSource,
+      relationshipTypes: ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"],
+      maxLength: 3,
+      pathCount: 1,
+    });
+    return {
+      case: judgeCase,
+      verdict: "SUPPORTED",
+      answer: `${members.length} team members: ${members.map((member) => member.displayName).join(", ")}.`,
+      evidence: members.map((member) => ({
+        source: `${member.sourceSystem} · ${member.sourceNativeId}`,
+        quote: `${member.displayName} is linked to ActionGenie through HAS_TEAM_MEMBER.`,
+        value: member.displayName,
+      })),
+      decision: {
+        status: "supported",
+        reason: "Distinct canonical employees were traversed through product membership and grounded name claims.",
+      },
+      coverage: {
+        sufficient: true,
+        detail: "The completed HERB product slice covers product_team relationships.",
+      },
+      counterfactual: "A later complete HERB product ingestion could add or remove a grounded team relationship.",
+      traversal: "Product → HAS_TEAM_MEMBER → Employee → ASSERTS → display_name → SUPPORTED_BY → SourceObject",
+      ablation: {
+        label: "No graph traversal",
+        result: "Client-side joins must fan out across product, employee, claim, and source records.",
+      },
+      graphProof,
+    };
+  }
+
+  const [entityExists, slices, locationEvidence] = await Promise.all([
     repository.entityExists(ids.knowledgeEntity),
     repository.findCoverageSlices("herb", "employee"),
+    judgeCase.id === "charlie-davis-lagos"
+      ? repository.findClaimEvidence(ids.knowledgeEntity, "located_in")
+      : Promise.resolve([]),
   ]);
-  const coverage = evaluateCoverage({ slices: [{ sourceSystem: "herb", objectType: "employee", predicateFamily: "favorite_lunch", contentScope: "metadata" }] }, slices);
+  const predicateFamily =
+    judgeCase.id === "charlie-davis-lagos" ? "location" : "favorite_lunch";
+  const coverage = evaluateCoverage(
+    {
+      slices: [
+        {
+          sourceSystem: "herb",
+          objectType: "employee",
+          predicateFamily,
+          contentScope: "metadata",
+        },
+      ],
+    },
+    slices,
+  );
+  const targetEvidence = locationEvidence.filter(
+    (item) => literalClaimValue(item)?.trim().toLocaleLowerCase() === "lagos",
+  );
   const dossier = buildDossier({
     question: judgeCase.question,
-    claims: [], conflicts: [], coverage,
+    claims: targetEvidence.map((item) => targetClaimFromEvidence(item, ids.knowledgeEntity)),
+    conflicts: [],
+    coverage,
     identity: entityExists ? { status: "resolved", entityId: ids.knowledgeEntity } : { status: "missing" },
-    sourceLabels: {},
+    sourceLabels: Object.fromEntries(
+      targetEvidence.map((item) => [item.sourceLogicalId, `${item.sourceSystem} · ${item.sourceNativeId}`]),
+    ),
+    completedCoverageSliceIds: slices
+      .filter((slice) => slice.status === "complete")
+      .map((slice) => slice.id),
   });
+  const pathEvidence = locationEvidence[0];
+  const graphProof = await requireGraphProof(repository, {
+    sourceLogicalId: pathEvidence?.claimLogicalId ?? ids.knowledgeEntity,
+    targetLogicalId: pathEvidence?.sourceLogicalId ?? ids.knowledgeSource,
+    relationshipTypes: pathEvidence ? ["SUPPORTED_BY"] : ["ASSERTS", "SUPPORTED_BY"],
+    maxLength: pathEvidence ? 1 : 2,
+    pathCount: 1,
+  });
+  if (judgeCase.id === "charlie-davis-lagos") {
+    const isFound = dossier.verdict === "SUPPORTED";
+    return {
+      case: judgeCase,
+      verdict: dossier.verdict,
+      answer: isFound
+        ? "Yes. A grounded Lagos location claim was found."
+        : dossier.verdict === "NOT_FOUND"
+          ? "No Lagos location was found in the completed employee-location coverage."
+          : "Not enough evidence to decide whether Charlie Davis is located in Lagos.",
+      evidence: [
+        ...targetEvidence.map((item) => ({
+          source: `${item.sourceSystem} · ${item.sourceNativeId}`,
+          quote: item.evidenceQuote ?? "Grounded location evidence: Lagos",
+          value: literalClaimValue(item),
+        })),
+        ...locationEvidence
+          .filter((item) => !targetEvidence.includes(item))
+          .map((item) => ({
+            source: `${item.sourceSystem} · ${item.sourceNativeId}`,
+            quote: `Related location evidence: ${literalClaimValue(item) ?? "non-literal location"}`,
+            value: literalClaimValue(item),
+          })),
+      ],
+      decision: {
+        status: dossier.verdict === "NOT_FOUND" ? "absence_proven" : dossier.verdict.toLowerCase(),
+        reason:
+          dossier.verdict === "NOT_FOUND"
+            ? "Identity is resolved, the location slice is complete, and no Lagos claim exists."
+            : "The verdict follows the grounded target claims and explicit location coverage.",
+      },
+      coverage: {
+        sufficient: coverage.sufficient,
+        detail: coverage.sufficient
+          ? "The completed HERB employee slice covers location metadata."
+          : "The HERB employee slice does not prove complete location coverage.",
+      },
+      counterfactual:
+        dossier.counterfactuals[0]?.summary ??
+        "A grounded Lagos claim would change the result to SUPPORTED.",
+      traversal: "Entity → ASSERTS → located_in Claim → SUPPORTED_BY → SourceObject; IngestionRun → COVERS → employee/location",
+      ablation: {
+        label: "No coverage gate",
+        result: "Without a completed location slice, the same missing Lagos claim must be UNKNOWN rather than NOT_FOUND.",
+      },
+      graphProof,
+    };
+  }
   return {
     case: judgeCase,
     verdict: dossier.verdict,
@@ -193,10 +509,17 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     counterfactual: dossier.counterfactuals[0]?.summary ?? "Complete preference coverage would make absence decidable.",
     traversal: "IngestionRun → COVERS → CoverageSlice (required family missing)",
     ablation: { label: "No coverage gate", result: "Would incorrectly return NOT_FOUND as if the corpus had been exhaustively checked." },
+    graphProof,
   };
 }
 
-function conflictWorkspace(caseValue: JudgeCase, observations: GraphObservationEvidence[], decision: GraphConflictDecision, winner: GraphObservationEvidence): CaseWorkspace {
+function conflictWorkspace(
+  caseValue: JudgeCase,
+  observations: GraphObservationEvidence[],
+  decision: GraphConflictDecision,
+  winner: GraphObservationEvidence,
+  graphProof: GraphProofSummary,
+): CaseWorkspace {
   return {
     case: caseValue,
     verdict: "SUPPORTED",
@@ -207,10 +530,16 @@ function conflictWorkspace(caseValue: JudgeCase, observations: GraphObservationE
     counterfactual: "A later grounded claim that supersedes the applied policy would change the answer.",
     traversal: "Entity → ASSERTS → Claim → HAS_OBSERVATION → SourceObject; Conflict → DECIDED_BY → AuthorityPolicy",
     ablation: { label: "No conflict policy", result: "20% and 30% remain disputed; no controlling answer can be issued." },
+    graphProof,
   };
 }
 
-function disputedWorkspace(caseValue: JudgeCase, observations: GraphObservationEvidence[], decision: GraphConflictDecision): CaseWorkspace {
+function disputedWorkspace(
+  caseValue: JudgeCase,
+  observations: GraphObservationEvidence[],
+  decision: GraphConflictDecision,
+  graphProof: GraphProofSummary,
+): CaseWorkspace {
   const values = observations.map((item) => literalValue(item));
   return {
     case: caseValue,
@@ -222,10 +551,15 @@ function disputedWorkspace(caseValue: JudgeCase, observations: GraphObservationE
     counterfactual: "Grounded lifecycle evidence for the second claim would let the policy compare both sides.",
     traversal: "Entity → ASSERTS → Claim → HAS_OBSERVATION → SourceObject; Conflict → CONSIDERS → Claim",
     ablation: { label: "Force a winner without a rule", result: "Would hide the 120s vs 180s disagreement behind a guessed default." },
+    graphProof,
   };
 }
 
-function identityWorkspace(caseValue: JudgeCase, decision: GraphIdentityDecision): CaseWorkspace {
+function identityWorkspace(
+  caseValue: JudgeCase,
+  decision: GraphIdentityDecision,
+  graphProof: GraphProofSummary,
+): CaseWorkspace {
   return {
     case: caseValue,
     verdict: "SUPPORTED",
@@ -236,5 +570,6 @@ function identityWorkspace(caseValue: JudgeCase, decision: GraphIdentityDecision
     counterfactual: "A verified account link plus removal of the employee-ID conflict would permit a merge.",
     traversal: "ResolutionDecision → SUPPORTED_BY → name_similarity; ResolutionDecision → BLOCKED_BY → employee_id_conflict",
     ablation: { label: "Naive fuzzy-name resolver", result: "Merges 1,645 same-name pairs; 1,627 violate known employee-ID constraints." },
+    graphProof,
   };
 }

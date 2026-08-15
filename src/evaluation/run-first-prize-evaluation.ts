@@ -49,6 +49,9 @@ const scoringLabels = {
   "owner-is-not-owner": { verdict: "SUPPORTED", answerIncludes: "distinct" },
   "david-taylor-collision": { verdict: "SUPPORTED", answerIncludes: "two people" },
   "favorite-lunch-boundary": { verdict: "UNKNOWN", answerIncludes: "Not enough evidence" },
+  "charlie-davis-role": { verdict: "SUPPORTED", answerIncludes: "Software Engineer" },
+  "actiongenie-team": { verdict: "SUPPORTED", answerIncludes: "66 team members" },
+  "charlie-davis-lagos": { verdict: "NOT_FOUND", answerIncludes: "No Lagos location" },
 } as const;
 
 function percentile(values: number[], quantile: number): number {

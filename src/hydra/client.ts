@@ -103,6 +103,9 @@ export interface GraphClaimEvidence {
   sourceLogicalId: string;
   sourceSystem: string;
   sourceNativeId: string;
+  extractionMethod?: "deterministic" | "qvac";
+  extractorVersion?: string;
+  evidenceQuote?: string;
 }
 
 export interface TeamMemberEvidence {
@@ -611,6 +614,16 @@ export class HydraRepository {
           sourceLogicalId: String(row.source),
           sourceSystem: String(sourcePayload.sourceSystem ?? "unknown"),
           sourceNativeId: String(sourcePayload.nativeId ?? "unknown"),
+          ...(claimPayload.extractionMethod === "deterministic" ||
+          claimPayload.extractionMethod === "qvac"
+            ? { extractionMethod: claimPayload.extractionMethod }
+            : {}),
+          ...(typeof claimPayload.extractorVersion === "string"
+            ? { extractorVersion: claimPayload.extractorVersion }
+            : {}),
+          ...(typeof claimPayload.evidenceQuote === "string"
+            ? { evidenceQuote: claimPayload.evidenceQuote }
+            : {}),
         },
       ];
     });
