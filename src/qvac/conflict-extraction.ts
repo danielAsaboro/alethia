@@ -102,7 +102,12 @@ export function buildGroundingCandidates(input: {
   limit: number;
 }): GroundingCandidate[] {
   const questionTokens = lexicalTokens(input.question);
-  const rawLines = input.sourceText.split("\n");
+  const lineSeparator = input.sourceText.includes("\n")
+    ? "\n"
+    : input.sourceText.includes("\\n")
+      ? "\\n"
+      : "\n";
+  const rawLines = input.sourceText.split(lineSeparator);
   const baseSegments = rawLines
     .flatMap((line) =>
       line.length > 900
@@ -115,7 +120,7 @@ export function buildGroundingCandidates(input: {
   for (let index = 0; index < rawLines.length; index += 1) {
     for (const width of [2, 3, 4, 5, 6, 8, 10]) {
       const lines = rawLines.slice(index, index + width);
-      const quote = lines.join("\n").trim();
+      const quote = lines.join(lineSeparator).trim();
       if (
         quote.length >= 24 &&
         quote.length <= 2400 &&
@@ -130,7 +135,7 @@ export function buildGroundingCandidates(input: {
     if (present.length < 2) return;
     const start = Math.max(0, Math.min(...present) - 1);
     const end = Math.min(rawLines.length, Math.max(...present) + 2);
-    const quote = rawLines.slice(start, end).join("\n").trim();
+    const quote = rawLines.slice(start, end).join(lineSeparator).trim();
     if (quote.length >= 24 && quote.length <= 7000) segments.push(quote);
   };
   const bestMatchingLineIndex = (pattern: RegExp): number =>
@@ -186,7 +191,7 @@ export function buildGroundingCandidates(input: {
         quoteTokens.has(token),
       ).length;
       const listLines = quote
-        .split("\n")
+        .split(/\n|\\n/)
         .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line)).length;
       const numericRanges = /\b(?:range|ranges|threshold|thresholds)\b/i.test(
         input.question,

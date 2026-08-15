@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertNoEvaluationLabels,
+  boundedEvidenceExcerpt,
   freezeConflictRuntime,
   parseFrozenConflictRuntime,
   parseRuntimeManifest,
@@ -96,6 +97,27 @@ function runtimeInputs(
 }
 
 describe("label-free ERB conflict runtime", () => {
+  it("keeps exact question-relevant old guidance while removing unrelated long text", () => {
+    const quote = [
+      "Earlier negotiation thread:",
+      ...Array.from({ length: 30 }, (_, index) => `Unrelated pricing detail ${index + 1}.`),
+      "Set po_fingerprint to raw PO_NUMBER|PO_LINE_UUID with no hashing.",
+      "Weekly invoice files arrive Monday 08:00 PT.",
+      ...Array.from({ length: 30 }, (_, index) => `Unrelated appendix ${index + 1}.`),
+    ].join("\\n");
+
+    const excerpt = boundedEvidenceExcerpt(
+      "What is the final po_fingerprint format and weekly invoice delivery time?",
+      quote,
+      500,
+    );
+
+    expect(excerpt).toMatch(/PO_NUMBER\|PO_LINE_UUID[\s\S]*no hashing/i);
+    expect(excerpt).toMatch(/Monday 08:00 PT/i);
+    expect(excerpt).not.toMatch(/Unrelated appendix 30/);
+    expect(excerpt.length).toBeLessThanOrEqual(500);
+  });
+
   it("checks in exactly 20 bounded conflict cases with no evaluation labels", async () => {
     const manifest = await checkedInManifest();
     expect(manifest.cases).toHaveLength(20);

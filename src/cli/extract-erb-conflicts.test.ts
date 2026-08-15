@@ -205,6 +205,39 @@ describe("parseExtractErbConflictArgs", () => {
     ]);
   });
 
+  it("uses repeated topical evidence to break incidental lexical ties", () => {
+    const ranked = rankCandidateDocuments(
+      {
+        questionId: "qst_price_normalization",
+        question: "What price-normalization correctness was reported at temp=0 with strict JSON and canonicalization?",
+        questionType: "conflicting_info",
+        sourceTypes: ["google_drive"],
+        maximumDocuments: 1,
+      },
+      [
+        {
+          sourceObjectId: "a-incidental",
+          sourceNativeId: "incidental",
+          sourceSystem: "google_drive",
+          title: "Playback manifest draft",
+          body: "JSON manifest with strict privacy. One invoice extraction used temp=0; canonicalization correctness is metadata.",
+          payloadDigest: "incidental",
+        },
+        {
+          sourceObjectId: "z-experiment-ledger",
+          sourceNativeId: "experiment-ledger",
+          sourceSystem: "google_drive",
+          title: "Experiment scratchpad",
+          body: "Extraction temp=0 JSON run. Extraction temp=0 JSON result. Canonicalization improved extraction correctness. Canonicalization rules retained.",
+          payloadDigest: "experiment-ledger",
+        },
+      ],
+      1,
+    );
+
+    expect(ranked.map((item) => item.sourceObjectId)).toEqual(["z-experiment-ledger"]);
+  });
+
   it("revalidates a cached rejected response against its exact candidate set", () => {
     const runtimeCase = {
       questionId: "qst_cached",

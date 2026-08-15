@@ -57,7 +57,7 @@ export interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v13";
+const promptVersion = "conflict-observation-v14";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
@@ -130,21 +130,23 @@ export function toRuntimeConflictCase(raw: unknown): RuntimeConflictCase {
   }
 }
 
+function tokenSequence(value: string): string[] {
+  return (
+    value
+      .normalize("NFKC")
+      .toLocaleLowerCase("en-US")
+      .match(/[a-z0-9][a-z0-9_-]{2,}/g)
+      ?.filter((token) => !stopWords.has(token))
+      .map((token) =>
+        token.length > 4 && token.endsWith("s") && !token.endsWith("ss")
+          ? token.slice(0, -1)
+          : token,
+      ) ?? []
+  );
+}
+
 function tokens(value: string): string[] {
-  return [
-    ...new Set(
-      value
-        .normalize("NFKC")
-        .toLocaleLowerCase("en-US")
-        .match(/[a-z0-9][a-z0-9_-]{2,}/g)
-        ?.filter((token) => !stopWords.has(token))
-        .map((token) =>
-          token.length > 4 && token.endsWith("s") && !token.endsWith("ss")
-            ? token.slice(0, -1)
-            : token,
-        ) ?? [],
-    ),
-  ];
+  return [...new Set(tokenSequence(value))];
 }
 
 function queriedLiteralAnchors(question: string): string[] {
@@ -187,12 +189,15 @@ export function rankCandidateDocuments(
       const title = document.title.toLocaleLowerCase("en-US");
       const body = document.body.toLocaleLowerCase("en-US");
       const titleTokens = new Set(tokens(document.title));
-      const bodyTokens = new Set(tokens(document.body));
+      const bodyTokenCounts = new Map<string, number>();
+      for (const token of tokenSequence(document.body)) {
+        bodyTokenCounts.set(token, (bodyTokenCounts.get(token) ?? 0) + 1);
+      }
       const score = questionTokens.reduce(
         (total, token) =>
           total +
           (titleTokens.has(token) || title.includes(token) ? 5 : 0) +
-          (bodyTokens.has(token) || body.includes(token) ? 1 : 0),
+          Math.min(3, bodyTokenCounts.get(token) ?? (body.includes(token) ? 1 : 0)),
         0,
       ) - contradictedAnchorCount(document.body, literalAnchors) * 8;
       return { document, score };

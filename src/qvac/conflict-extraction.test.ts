@@ -294,6 +294,25 @@ describe("constrained conflict evidence selection", () => {
     expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
   });
 
+  it("treats literal escaped newlines as boundaries instead of selecting a whole serialized thread", () => {
+    const sourceText = [
+      "Earlier negotiation thread:",
+      ...Array.from({ length: 25 }, (_, index) => `Unrelated commercial note ${index + 1}.`),
+      "Set po_fingerprint to raw PO#|LINEUUID with no hashing.",
+      "Deliver weekly invoices Monday 08:00 PT.",
+      ...Array.from({ length: 25 }, (_, index) => `Unrelated appendix ${index + 1}.`),
+    ].join("\\n");
+    const candidates = buildGroundingCandidates({
+      question: "What po_fingerprint format and weekly invoice delivery time were proposed?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates[0]?.quote).toMatch(/PO#\|LINEUUID[\s\S]*Monday 08:00 PT/i);
+    expect(candidates[0]!.quote.length).toBeLessThan(sourceText.length / 2);
+    expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
+  });
+
   it("turns a selected exact source candidate into a grounded observation", () => {
     const body = [
       "Unrelated operational note.",

@@ -130,6 +130,96 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
+const answerStopWords = new Set([
+  "about",
+  "after",
+  "does",
+  "final",
+  "from",
+  "have",
+  "into",
+  "should",
+  "that",
+  "than",
+  "the",
+  "their",
+  "this",
+  "what",
+  "when",
+  "where",
+  "which",
+  "with",
+]);
+
+function answerTokens(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .normalize("NFKC")
+        .toLocaleLowerCase("en-US")
+        .match(/[a-z0-9][a-z0-9_-]{2,}/g)
+        ?.filter((token) => !answerStopWords.has(token)) ?? [],
+    ),
+  ];
+}
+
+export function boundedEvidenceExcerpt(
+  question: string,
+  quote: string,
+  maximumCharacters = 1800,
+): string {
+  const trimmed = quote.trim();
+  if (trimmed.length <= maximumCharacters) return trimmed;
+  const questionTokens = answerTokens(question);
+  const formatIntent = /\b(?:format|fingerprint|identifier|digest)\b/i.test(question);
+  const measurementIntent = /\bmeasurement\s+basis\b/i.test(question);
+  const lines = trimmed
+    .split(/\r?\n|\\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 8);
+  const ranked = lines
+    .map((line, index) => {
+      const lineTokens = new Set(answerTokens(line));
+      const overlap = questionTokens.filter((token) => lineTokens.has(token)).length;
+      const formatScore = formatIntent
+        ? [
+            /[A-Z][A-Z0-9_]+\s*\|\s*[A-Z][A-Z0-9_]+/,
+            /\b(?:sha-?\d+|hex(?:adecimal)?|digest|hash)\b/i,
+            /\b(?:no|not|without|raw|unhashed)\b[^\n]{0,50}\b(?:whitespace|hash|identifier|fingerprint|string)\b/i,
+            /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b[^\n]{0,50}\b\d{1,2}:\d{2}\b/i,
+            /\b(?:every|each|per)\b[^\n]{0,50}\b(?:line|record|item)\b/i,
+          ].filter((pattern) => pattern.test(line)).length * 6
+        : 0;
+      const measurementScore = measurementIntent
+        ? [
+            /provider[^\n]{0,50}bill|sampled\s+bytes/i,
+            /[$€£]\s*\d[^\n]{0,100}\b(?:gb|gib|byte|token)s?\b/i,
+            /[$€£]\s*\d[^\n]{0,80}(?:hour|rps)/i,
+          ].filter((pattern) => pattern.test(line)).length * 6
+        : 0;
+      const auditScore = /\b(?:deprecated|earlier|old|previous|proposal|superseded|updated)\b/i.test(line)
+        ? 2
+        : 0;
+      return { line, index, score: overlap * 5 + formatScore + measurementScore + auditScore };
+    })
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  const selected: typeof ranked = [];
+  let characters = 0;
+  for (const item of ranked) {
+    if (selected.length >= 12) break;
+    const addition = item.line.length + (selected.length > 0 ? 1 : 0);
+    if (characters + addition > maximumCharacters) continue;
+    selected.push(item);
+    characters += addition;
+  }
+  if (selected.length === 0) return `${trimmed.slice(0, maximumCharacters - 1).trimEnd()}…`;
+  return selected
+    .sort((left, right) => left.index - right.index)
+    .map((item) => item.line)
+    .join(" ");
+}
+
 export function canonicalDigest(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalize(value)))
@@ -371,13 +461,24 @@ export function freezeConflictRuntime(input: {
       const otherQuotes = groundedQuotes.filter(
         (quote) => !winningQuotes.includes(quote),
       );
+      const conciseWinningQuotes = winningQuotes.map((quote) =>
+        boundedEvidenceExcerpt(manifestCase.question, quote),
+      );
+      const conciseOtherQuotes = otherQuotes.map((quote) =>
+        boundedEvidenceExcerpt(manifestCase.question, quote, 900),
+      );
+      const winningValueIsQuote = winningQuotes.some(
+        (quote) => quote.trim() === promotion.winningValue.trim(),
+      );
       const answer = [
-        `Grounded answer: ${promotion.winningValue}.`,
-        winningQuotes.length
-          ? `Controlling evidence: ${winningQuotes.join(" ")}`
+        winningValueIsQuote || promotion.winningValue.length > 500
+          ? "Grounded answer is established by the controlling evidence below."
+          : `Grounded answer: ${promotion.winningValue}.`,
+        conciseWinningQuotes.length
+          ? `Controlling evidence: ${conciseWinningQuotes.join(" ")}`
           : "",
-        otherQuotes.length
-          ? `Superseded or conflicting evidence retained for audit only; it is not the current answer: ${otherQuotes.join(" ")}`
+        conciseOtherQuotes.length
+          ? `Superseded or conflicting evidence retained for audit only; it is explicitly not the current answer: ${conciseOtherQuotes.join(" ")}`
           : "",
       ]
         .filter(Boolean)
