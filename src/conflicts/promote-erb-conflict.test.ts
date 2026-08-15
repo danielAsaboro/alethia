@@ -200,6 +200,77 @@ describe("promoteAcceptedConflict", () => {
     });
   });
 
+  it("prefers an explicit latest marker when the older source has no date", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_latest_marker",
+      question: "What is the latest baseline QPS?",
+      accepted: [
+        extraction({
+          cacheKey: "latest",
+          sourceObjectId: "src-latest",
+          sourceNativeId: "latest",
+          observation: {
+            subject: "customer",
+            predicate: "conflict_answer",
+            value: "60 QPS",
+            evidenceQuote: "Latest projection from 2026-03-12: baseline 60 QPS.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "current-old",
+          sourceObjectId: "src-current-old",
+          sourceNativeId: "current-old",
+          observation: {
+            subject: "customer",
+            predicate: "conflict_answer",
+            value: "50 QPS",
+            evidenceQuote: "Current production-ish load: baseline 50 QPS.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "resolved", winningValue: "60 QPS" });
+  });
+
+  it("does not treat an incidental 'was' phrase as supersession", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_ttl",
+      question: "What is the default handshake TTL?",
+      accepted: [
+        extraction({
+          cacheKey: "new-ttl",
+          sourceObjectId: "src-new-ttl",
+          sourceNativeId: "new-ttl",
+          sourceTitle: "GPU handoff runbook (2025)",
+          observation: {
+            subject: "handoff",
+            predicate: "conflict_answer",
+            value: "120 seconds",
+            evidenceQuote: "Handshake tokens now default to 120 seconds (was 180s).",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "old-ttl",
+          sourceObjectId: "src-old-ttl",
+          sourceNativeId: "old-ttl",
+          observation: {
+            subject: "handoff",
+            predicate: "conflict_answer",
+            value: "180 seconds",
+            evidenceQuote: "The incident was non-trivial. Handshake tokens default to 180 seconds.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "resolved", winningValue: "120 seconds" });
+  });
+
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",

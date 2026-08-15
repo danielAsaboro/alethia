@@ -136,6 +136,39 @@ describe("parseExtractErbConflictArgs", () => {
     ]);
   });
 
+  it("normalizes plural query terms when ranking document titles", () => {
+    const ranked = rankCandidateDocuments(
+      {
+        questionId: "qst_exports",
+        question: "How do audit log exports access records older than retention: override or legal hold?",
+        questionType: "conflicting_info",
+        sourceTypes: ["confluence"],
+        maximumDocuments: 1,
+      },
+      [
+        {
+          sourceObjectId: "generic-guide",
+          sourceNativeId: "generic",
+          sourceSystem: "confluence",
+          title: "Private Backup and Audit Log Retention Guide",
+          body: "Audit access and retention are discussed.",
+          payloadDigest: "generic",
+        },
+        {
+          sourceObjectId: "specific-export",
+          sourceNativeId: "specific",
+          sourceSystem: "confluence",
+          title: "Audit log export: role-aware filtered dump",
+          body: "Records older than the cutoff require legal hold; super-admin override is deprecated.",
+          payloadDigest: "specific",
+        },
+      ],
+      1,
+    );
+
+    expect(ranked.map((item) => item.sourceObjectId)).toEqual(["specific-export"]);
+  });
+
   it("revalidates a cached rejected response against its exact candidate set", () => {
     const runtimeCase = {
       questionId: "qst_cached",

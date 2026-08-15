@@ -139,9 +139,15 @@ export function buildGroundingCandidates(input: {
       const listLines = quote
         .split("\n")
         .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line)).length;
+      const numericRanges = /\b(?:range|ranges|threshold|thresholds)\b/i.test(
+        input.question,
+      )
+        ? quote.match(/(?:>=|<=|>|<)\s*\d+|\b\d+\s*[-–]\s*\d+\b/g)?.length ?? 0
+        : 0;
       const score =
         overlap * 5 +
         Math.min(4, listLines) +
+        Math.min(12, numericRanges * 3) +
         (/\d/.test(quote) ? 2 : 0) +
         (/\bas of\b|\bv\d+(?:\.\d+)+\+?/i.test(quote) ? 6 : 0) +
         (/%|percent|percentage/i.test(quote) ? 3 : 0) +

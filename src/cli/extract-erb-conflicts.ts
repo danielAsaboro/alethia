@@ -57,7 +57,7 @@ export interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v11";
+const promptVersion = "conflict-observation-v12";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
@@ -65,9 +65,12 @@ const stopWords = new Set([
   "does",
   "from",
   "have",
+  "how",
   "into",
   "should",
   "that",
+  "than",
+  "the",
   "their",
   "this",
   "what",
@@ -134,7 +137,12 @@ function tokens(value: string): string[] {
         .normalize("NFKC")
         .toLocaleLowerCase("en-US")
         .match(/[a-z0-9][a-z0-9_-]{2,}/g)
-        ?.filter((token) => !stopWords.has(token)) ?? [],
+        ?.filter((token) => !stopWords.has(token))
+        .map((token) =>
+          token.length > 4 && token.endsWith("s") && !token.endsWith("ss")
+            ? token.slice(0, -1)
+            : token,
+        ) ?? [],
     ),
   ];
 }
@@ -150,11 +158,13 @@ export function rankCandidateDocuments(
     .map((document) => {
       const title = document.title.toLocaleLowerCase("en-US");
       const body = document.body.toLocaleLowerCase("en-US");
+      const titleTokens = new Set(tokens(document.title));
+      const bodyTokens = new Set(tokens(document.body));
       const score = questionTokens.reduce(
         (total, token) =>
           total +
-          (title.includes(token) ? 5 : 0) +
-          (body.includes(token) ? 1 : 0),
+          (titleTokens.has(token) || title.includes(token) ? 5 : 0) +
+          (bodyTokens.has(token) || body.includes(token) ? 1 : 0),
         0,
       );
       return { document, score };

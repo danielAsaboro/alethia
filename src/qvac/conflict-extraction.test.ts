@@ -197,6 +197,64 @@ describe("constrained conflict evidence selection", () => {
     ]));
   });
 
+  it("prioritizes numeric threshold blocks for score-range questions", () => {
+    const sourceText = [
+      "Tier score ranges overview:",
+      "- Tier 1 means widespread impact",
+      "- Tier 2 means major impact",
+      "- Tier 3 means localized impact",
+      "- Tier 4 means minor impact",
+      "",
+      "Background one.",
+      "Background two.",
+      "Background three.",
+      "Background four.",
+      "Background five.",
+      "Background six.",
+      "Background seven.",
+      "Background eight.",
+      "",
+      "Current v2 score thresholds:",
+      "- Tier 1: score >= 85",
+      "- Tier 2: score 70-84",
+      "- Tier 3: score 50-69",
+      "- Tier 4: score < 50",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What score ranges map to Tiers 1-4 in v2?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates[0]?.quote).toMatch(/>= 85[\s\S]*70-84[\s\S]*50-69[\s\S]*< 50/);
+  });
+
+  it("preserves literal escaped newlines while building structured candidates", () => {
+    const sourceText = [
+      "Current v2 thresholds:",
+      "Tier 1 >= 85",
+      "Tier 2 70-84",
+      "Tier 3 35-69",
+      "Tier 4 < 35",
+      "Previous thresholds:",
+      "Tier 1 >= 90",
+      "Tier 2 75-89",
+      "Tier 3 40-74",
+      "Tier 4 < 40",
+    ].join("\\n");
+    const candidates = buildGroundingCandidates({
+      question: "What score ranges map to tiers in v2 and the previous thresholds?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ quote: expect.stringMatching(/>= 85\\nTier 2 70-84/) }),
+      expect.objectContaining({ quote: expect.stringMatching(/>= 90\\nTier 2 75-89/) }),
+    ]));
+    expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
+  });
+
   it("turns a selected exact source candidate into a grounded observation", () => {
     const body = [
       "Unrelated operational note.",

@@ -68,9 +68,10 @@ function precedenceScore(extraction: AcceptedConflictExtraction): number {
     unknown: 0,
   }[extraction.observation.lifecycle];
   const explicitSupersession =
-    /correct(?:ion|ed)|deprecated|replaced|supersed|outdated|old doc|\bwas\b|previous(?:ly)?/i.test(quote)
+    /correct(?:ion|ed)|deprecated|replaced|supersed|outdated|old doc|\bwas\s+(?:\d|previous|formerly)|previous(?:ly)?/i.test(quote)
       ? 5
       : 0;
+  const latestMarker = /\blatest\b|\bmost recent\b/i.test(quote) ? 6 : 0;
   const currentMarker =
     /\bnow\b|\bupdated\b|\bcurrent\b|effective|finalized|post-merge/i.test(quote)
       ? 3
@@ -81,7 +82,14 @@ function precedenceScore(extraction: AcceptedConflictExtraction): number {
   const titleDraft = /draft|scratchpad|meeting|\b2025\b|initial/i.test(title)
     ? -2
     : 0;
-  return lifecycleScore + explicitSupersession + currentMarker + titleCurrent + titleDraft;
+  return (
+    lifecycleScore +
+    explicitSupersession +
+    latestMarker +
+    currentMarker +
+    titleCurrent +
+    titleDraft
+  );
 }
 
 function latestEvidenceTimestamp(extraction: AcceptedConflictExtraction): number | null {
@@ -136,7 +144,7 @@ export function promoteAcceptedConflict(input: {
   const observations: ClaimObservation[] = accepted.map((extraction) => ({
     id: stableId("observation", {
       cacheKey: extraction.cacheKey,
-      promptVersion: "conflict-observation-v11",
+      promptVersion: "conflict-observation-v12",
     }),
     claimCandidate: {
       id: `candidate_${extraction.cacheKey}`,
@@ -149,11 +157,11 @@ export function promoteAcceptedConflict(input: {
       sourceObjectId: extraction.sourceObjectId,
       sourceSystem: extraction.sourceSystem,
       extractionMethod: "qvac",
-      extractorVersion: "qvac:sourcetruce-extractor:v11",
+      extractorVersion: "qvac:sourcetruce-extractor:v12",
     },
     evidenceQuote: extraction.observation.evidenceQuote,
     method: "qvac",
-    extractorVersion: "qvac:sourcetruce-extractor:v11",
+    extractorVersion: "qvac:sourcetruce-extractor:v12",
   }));
   const consolidated = consolidateClaims(observations);
   const adjudicationClaims = accepted.map((extraction): AdjudicationClaim => {
