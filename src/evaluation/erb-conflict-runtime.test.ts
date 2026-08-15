@@ -28,7 +28,7 @@ function runtimeInputs(
 ): { extraction: ConflictExtractionArtifact; promotions: ConflictPromotion[] } {
   const extraction: ConflictExtractionArtifact = {
     schemaVersion: 1,
-    runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v10" },
+    runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v11" },
     cases: manifest.cases.map((item) => ({
       questionId: item.questionId,
       question: item.question,
@@ -156,6 +156,9 @@ describe("label-free ERB conflict runtime", () => {
       verdict: "DISPUTED",
       answer: expect.stringMatching(/new value[\s\S]*Updated current setting[\s\S]*Previous setting/),
     });
+    expect(first.cases.find((item) => item.questionId === "qst_0411")?.answer).toMatch(
+      /not the current answer/i,
+    );
     expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.digest).toBe(reordered.digest);
     expect(first).toEqual(reordered);

@@ -131,6 +131,72 @@ describe("constrained conflict evidence selection", () => {
     expect(candidates.every((item) => sourceText.includes(item.quote))).toBe(true);
   });
 
+  it("ranks question overlap above an unrelated longer list", () => {
+    const sourceText = [
+      "Operational backup manifest checklist:",
+      "- rotate KMS keys",
+      "- verify signed restore reports",
+      "- archive signed manifests",
+      "- test retention",
+      "",
+      "Background note one.",
+      "Background note two.",
+      "Background note three.",
+      "Background note four.",
+      "Background note five.",
+      "Background note six.",
+      "Background note seven.",
+      "Background note eight.",
+      "",
+      "Integrity and tamper evidence:",
+      "- As of v1.8+, manifests can be signed using cosign in offline mode.",
+      "- GPG is supported only for migration.",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What is recommended for signing backup manifests?",
+      sourceText,
+      limit: 8,
+    });
+
+    expect(candidates[0]?.quote).toMatch(/v1\.8[\s\S]*cosign/i);
+  });
+
+  it("diversifies overlapping windows so a later answer section is retained", () => {
+    const sourceText = [
+      "Current prompt bucket dashboard overview:",
+      "- short series is displayed",
+      "- medium series is displayed",
+      "- long series is displayed",
+      "- current routes are filterable",
+      "- prompt metrics are charted",
+      "- bucket labels are visible",
+      "- cutoff annotations are supported",
+      "",
+      "Unrelated separator one.",
+      "Unrelated separator two.",
+      "Unrelated separator three.",
+      "Unrelated separator four.",
+      "Unrelated separator five.",
+      "Unrelated separator six.",
+      "Unrelated separator seven.",
+      "Unrelated separator eight.",
+      "",
+      "Current prompt_len_bucket cutoffs:",
+      "- short: fewer than 128 tokens",
+      "- medium: 128 through 1024 tokens",
+      "- long: more than 1024 tokens",
+    ].join("\n");
+    const candidates = buildGroundingCandidates({
+      question: "What are the current prompt bucket cutoffs for short, medium, and long?",
+      sourceText,
+      limit: 4,
+    });
+
+    expect(candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ quote: expect.stringMatching(/fewer than 128[\s\S]*more than 1024/) }),
+    ]));
+  });
+
   it("turns a selected exact source candidate into a grounded observation", () => {
     const body = [
       "Unrelated operational note.",
@@ -170,9 +236,9 @@ describe("constrained conflict evidence selection", () => {
     );
   });
 
-  it("rejects an out-of-range candidate or a value absent from the candidate", () => {
+  it("falls back to the exact candidate when the model value is not contiguous", () => {
     const candidates = [{ index: 0, quote: "The applied target is 30%." }];
-    expect(() =>
+    expect(
       validateConflictSelection({
         responseText:
           '{"candidateIndex":0,"value":"20%","lifecycle":"applied"}',
@@ -181,7 +247,11 @@ describe("constrained conflict evidence selection", () => {
         subject: "pool",
         predicate: "conflict_answer",
       }),
-    ).toThrow("value is not in its quote");
+    ).toMatchObject({ value: candidates[0].quote, evidenceQuote: candidates[0].quote });
+  });
+
+  it("rejects an out-of-range candidate", () => {
+    const candidates = [{ index: 0, quote: "The applied target is 30%." }];
     expect(() =>
       validateConflictSelection({
         responseText:

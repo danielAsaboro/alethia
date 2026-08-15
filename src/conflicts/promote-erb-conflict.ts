@@ -84,6 +84,15 @@ function precedenceScore(extraction: AcceptedConflictExtraction): number {
   return lifecycleScore + explicitSupersession + currentMarker + titleCurrent + titleDraft;
 }
 
+function latestEvidenceTimestamp(extraction: AcceptedConflictExtraction): number | null {
+  const dates = [
+    ...extraction.observation.evidenceQuote.matchAll(/\b20\d{2}-\d{2}-\d{2}\b/g),
+  ]
+    .map((match) => Date.parse(`${match[0]}T00:00:00Z`))
+    .filter(Number.isFinite);
+  return dates.length > 0 ? Math.max(...dates) : null;
+}
+
 export function normalizeAnswerValue(
   question: string,
   value: string | number | boolean,
@@ -127,7 +136,7 @@ export function promoteAcceptedConflict(input: {
   const observations: ClaimObservation[] = accepted.map((extraction) => ({
     id: stableId("observation", {
       cacheKey: extraction.cacheKey,
-      promptVersion: "conflict-observation-v10",
+      promptVersion: "conflict-observation-v11",
     }),
     claimCandidate: {
       id: `candidate_${extraction.cacheKey}`,
@@ -140,11 +149,11 @@ export function promoteAcceptedConflict(input: {
       sourceObjectId: extraction.sourceObjectId,
       sourceSystem: extraction.sourceSystem,
       extractionMethod: "qvac",
-      extractorVersion: "qvac:sourcetruce-extractor:v10",
+      extractorVersion: "qvac:sourcetruce-extractor:v11",
     },
     evidenceQuote: extraction.observation.evidenceQuote,
     method: "qvac",
-    extractorVersion: "qvac:sourcetruce-extractor:v10",
+    extractorVersion: "qvac:sourcetruce-extractor:v11",
   }));
   const consolidated = consolidateClaims(observations);
   const adjudicationClaims = accepted.map((extraction): AdjudicationClaim => {
@@ -171,8 +180,20 @@ export function promoteAcceptedConflict(input: {
   let activePolicy = lifecyclePolicy;
   let adjudication = adjudicateConflict({ id: conflictId, left, right }, [activePolicy]);
   if (adjudication.status === "unresolved") {
-    const leftScore = precedenceScore(accepted[0]);
-    const rightScore = precedenceScore(accepted[1]);
+    let leftScore = precedenceScore(accepted[0]);
+    let rightScore = precedenceScore(accepted[1]);
+    if (/\b(?:latest|current|most recent)\b/i.test(input.question)) {
+      const leftTimestamp = latestEvidenceTimestamp(accepted[0]);
+      const rightTimestamp = latestEvidenceTimestamp(accepted[1]);
+      if (
+        leftTimestamp !== null &&
+        rightTimestamp !== null &&
+        leftTimestamp !== rightTimestamp
+      ) {
+        if (leftTimestamp > rightTimestamp) leftScore += 10;
+        else rightScore += 10;
+      }
+    }
     if (Math.abs(leftScore - rightScore) >= 2) {
       const leftWins = leftScore > rightScore;
       activePolicy = groundedSupersessionPolicy;

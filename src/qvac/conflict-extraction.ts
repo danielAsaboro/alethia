@@ -85,10 +85,13 @@ function valueIsRepresented(
 function lexicalTokens(value: string): string[] {
   return [
     ...new Set(
-      value
+      (value
         .normalize("NFKC")
         .toLocaleLowerCase("en-US")
-        .match(/[a-z0-9][a-z0-9_-]{2,}/g) ?? [],
+        .match(/[a-z0-9][a-z0-9_-]{2,}/g) ?? [])
+        .map((token) =>
+          /^sign(?:ed|ing|ature|atures)?$/.test(token) ? "sign" : token,
+        ),
     ),
   ];
 }
@@ -110,7 +113,7 @@ export function buildGroundingCandidates(input: {
     .filter((segment) => segment.length >= 12);
   const segments = [...baseSegments];
   for (let index = 0; index < rawLines.length; index += 1) {
-    for (const width of [2, 3, 5, 8]) {
+    for (const width of [2, 3, 5, 8, 10]) {
       const lines = rawLines.slice(index, index + width);
       const quote = lines.join("\n").trim();
       if (
@@ -129,17 +132,18 @@ export function buildGroundingCandidates(input: {
 
   const ranked = (valueTypedSegments.length > 0 ? valueTypedSegments : uniqueSegments)
     .map((quote, originalIndex) => {
-      const lowered = quote.toLocaleLowerCase("en-US");
+      const quoteTokens = new Set(lexicalTokens(quote));
       const overlap = questionTokens.filter((token) =>
-        lowered.includes(token),
+        quoteTokens.has(token),
       ).length;
       const listLines = quote
         .split("\n")
         .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line)).length;
       const score =
-        overlap * 4 +
-        Math.min(8, listLines * 2) +
+        overlap * 5 +
+        Math.min(4, listLines) +
         (/\d/.test(quote) ? 2 : 0) +
+        (/\bas of\b|\bv\d+(?:\.\d+)+\+?/i.test(quote) ? 6 : 0) +
         (/%|percent|percentage/i.test(quote) ? 3 : 0) +
         (/propos|approv|appl|deploy|updat|deprecated|earlier|current/i.test(
           quote,
@@ -150,13 +154,27 @@ export function buildGroundingCandidates(input: {
     })
     .sort(
       (left, right) =>
-        right.score - left.score || left.originalIndex - right.originalIndex,
+        right.score - left.score ||
+        right.quote.length - left.quote.length ||
+        left.originalIndex - right.originalIndex,
     );
   const selected: string[] = [];
   let totalChars = 0;
   for (const { quote } of ranked) {
     if (selected.length >= input.limit) break;
     if (selected.length > 0 && totalChars + quote.length > 10_000) continue;
+    const candidateTokens = new Set(lexicalTokens(quote));
+    const overlapsSelectedRegion = selected.some((existing) => {
+      const existingTokens = new Set(lexicalTokens(existing));
+      const smallerSize = Math.min(candidateTokens.size, existingTokens.size);
+      if (smallerSize === 0) return false;
+      let shared = 0;
+      for (const token of candidateTokens) {
+        if (existingTokens.has(token)) shared += 1;
+      }
+      return shared / smallerSize >= 0.7;
+    });
+    if (overlapsSelectedRegion) continue;
     selected.push(quote);
     totalChars += quote.length;
   }
@@ -199,6 +217,9 @@ export function validateConflictSelection(input: {
     throw new TypeError("QVAC conflict selection candidate does not exist");
   }
   let value = recoveredFromTruncation ? candidate.quote : result.data.value;
+  if (!valueIsRepresented(value, candidate.quote)) {
+    value = candidate.quote;
+  }
   if (
     typeof value === "string" &&
     value.trim() === candidate.quote.trim() &&

@@ -10,7 +10,11 @@ import {
   type RuntimeConflictManifestCase,
 } from "@/evaluation/erb-conflict-runtime";
 import { ErbAdapter } from "@/ingestion/erb-adapter";
-import type { ConflictExtractionObservation } from "@/qvac/conflict-extraction";
+import {
+  buildGroundingCandidates,
+  type ConflictExtractionObservation,
+  validateConflictSelection,
+} from "@/qvac/conflict-extraction";
 import {
   QvacClient,
   QvacConflictExtractionError,
@@ -35,7 +39,7 @@ export interface CandidateDocument {
   payloadDigest: string;
 }
 
-interface ExtractionRecord {
+export interface ExtractionRecord {
   cacheKey: string;
   questionId: string;
   sourceObjectId: string;
@@ -53,7 +57,7 @@ interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v10";
+const promptVersion = "conflict-observation-v11";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
@@ -189,6 +193,42 @@ function subjectHint(runtimeCase: RuntimeConflictCase): string {
   );
 }
 
+export function revalidateCachedExtraction(input: {
+  runtimeCase: RuntimeConflictCase;
+  document: CandidateDocument;
+  cached: ExtractionRecord;
+}): ExtractionRecord {
+  try {
+    const observation = validateConflictSelection({
+      responseText: input.cached.responseText,
+      candidates: buildGroundingCandidates({
+        question: input.runtimeCase.question,
+        sourceText: input.document.body,
+        limit: 8,
+      }),
+      sourceText: input.document.body,
+      question: input.runtimeCase.question,
+      subject: subjectHint(input.runtimeCase),
+      predicate: "conflict_answer",
+    });
+    return {
+      ...input.cached,
+      status: "accepted",
+      observation,
+      error: undefined,
+      cached: true,
+    };
+  } catch (error) {
+    return {
+      ...input.cached,
+      status: "rejected",
+      observation: undefined,
+      error: error instanceof Error ? error.message : String(error),
+      cached: true,
+    };
+  }
+}
+
 async function loadConflictCases(manifestPath: string): Promise<RuntimeConflictCase[]> {
   const body = await readFile(path.resolve(manifestPath), "utf8");
   const manifest = parseRuntimeManifest(JSON.parse(body) as unknown);
@@ -265,7 +305,9 @@ async function main(): Promise<void> {
       });
       const cached = cache.get(cacheKey);
       if (cached) {
-        extractions.push({ ...cached, cached: true });
+        extractions.push(
+          revalidateCachedExtraction({ runtimeCase, document, cached }),
+        );
         continue;
       }
       const started = performance.now();

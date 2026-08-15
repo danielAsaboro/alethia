@@ -161,6 +161,45 @@ describe("promoteAcceptedConflict", () => {
     });
   });
 
+  it("uses the newer grounded ISO date when the question asks for the latest value", () => {
+    const result = promoteAcceptedConflict({
+      questionId: "qst_latest",
+      question: "What is the latest baseline QPS?",
+      accepted: [
+        extraction({
+          cacheKey: "newer",
+          sourceObjectId: "src-newer",
+          sourceNativeId: "newer",
+          observation: {
+            subject: "customer",
+            predicate: "conflict_answer",
+            value: "60 QPS",
+            evidenceQuote: "Latest projection from 2026-03-12: baseline 60 QPS.",
+            lifecycle: "applied",
+          },
+        }),
+        extraction({
+          cacheKey: "older",
+          sourceObjectId: "src-older",
+          sourceNativeId: "older",
+          observation: {
+            subject: "customer",
+            predicate: "conflict_answer",
+            value: "50 QPS",
+            evidenceQuote: "Workshop notes from 2026-03-01: baseline 50 QPS.",
+            lifecycle: "applied",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      winningValue: "60 QPS",
+      conflict: { resolution: "left", policyId: "policy_grounded_supersession_v2" },
+    });
+  });
+
   it("uses stable graph identities for the unresolved qst_0421-shaped case", () => {
     const result = promoteAcceptedConflict({
       questionId: "qst_0421",

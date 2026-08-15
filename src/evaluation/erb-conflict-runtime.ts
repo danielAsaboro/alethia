@@ -377,7 +377,7 @@ export function freezeConflictRuntime(input: {
           ? `Controlling evidence: ${winningQuotes.join(" ")}`
           : "",
         otherQuotes.length
-          ? `Earlier or conflicting evidence retained: ${otherQuotes.join(" ")}`
+          ? `Superseded or conflicting evidence retained for audit only; it is not the current answer: ${otherQuotes.join(" ")}`
           : "",
       ]
         .filter(Boolean)

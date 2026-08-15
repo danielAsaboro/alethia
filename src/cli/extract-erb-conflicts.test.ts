@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseExtractErbConflictArgs,
   rankCandidateDocuments,
+  revalidateCachedExtraction,
   toRuntimeConflictCase,
 } from "./extract-erb-conflicts";
 
@@ -133,5 +134,48 @@ describe("parseExtractErbConflictArgs", () => {
       "confluence-best",
       "slack-best",
     ]);
+  });
+
+  it("revalidates a cached rejected response against its exact candidate set", () => {
+    const runtimeCase = {
+      questionId: "qst_cached",
+      question: "What % is the applied target?",
+      questionType: "conflicting_info" as const,
+      sourceTypes: ["confluence"],
+      maximumDocuments: 1,
+    };
+    const document = {
+      sourceObjectId: "source",
+      sourceNativeId: "doc",
+      sourceSystem: "confluence",
+      title: "Current target",
+      body: "The applied target is 30%.",
+      payloadDigest: "digest",
+    };
+
+    expect(
+      revalidateCachedExtraction({
+        runtimeCase,
+        document,
+        cached: {
+          cacheKey: "cache",
+          questionId: "qst_cached",
+          sourceObjectId: "source",
+          sourceNativeId: "doc",
+          sourceSystem: "confluence",
+          sourceTitle: "Current target",
+          sourceDigest: "digest",
+          status: "rejected",
+          error: "invalid JSON",
+          responseText: '{"candidateIndex":0,"value":"The applied target is 30%',
+          latencyMs: 10,
+          cached: false,
+        },
+      }),
+    ).toMatchObject({
+      status: "accepted",
+      cached: true,
+      observation: { value: "30%", evidenceQuote: "The applied target is 30%." },
+    });
   });
 });
