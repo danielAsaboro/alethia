@@ -128,7 +128,7 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
-function digest(value: unknown): string {
+export function canonicalDigest(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalize(value)))
     .digest("hex");
@@ -372,7 +372,7 @@ export function freezeConflictRuntime(input: {
 
   const withoutDigest = {
     schemaVersion: 1 as const,
-    manifestDigest: digest(manifest),
+    manifestDigest: canonicalDigest(manifest),
     runtime: {
       model: input.extraction.runtime.model,
       promptVersion: manifest.promptVersion,
@@ -385,7 +385,89 @@ export function freezeConflictRuntime(input: {
     },
     cases,
   };
-  const frozen = { ...withoutDigest, digest: digest(withoutDigest) };
+  const frozen = { ...withoutDigest, digest: canonicalDigest(withoutDigest) };
   assertNoEvaluationLabels(frozen);
   return frozen;
+}
+
+export function parseFrozenConflictRuntime(value: unknown): FrozenConflictRuntime {
+  assertNoEvaluationLabels(value);
+  if (
+    !isRecord(value) ||
+    value.schemaVersion !== 1 ||
+    typeof value.manifestDigest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.manifestDigest) ||
+    !isRecord(value.runtime) ||
+    typeof value.runtime.model !== "string" ||
+    typeof value.runtime.promptVersion !== "string" ||
+    !isRecord(value.summary) ||
+    !Array.isArray(value.cases) ||
+    typeof value.digest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.digest)
+  ) {
+    throw new TypeError("Frozen runtime has an invalid envelope");
+  }
+  const cases = value.cases.map((item): FrozenConflictCase => {
+    if (
+      !isRecord(item) ||
+      typeof item.questionId !== "string" ||
+      typeof item.question !== "string" ||
+      item.questionType !== "conflicting_info" ||
+      !["completed", "rejected", "failed"].includes(String(item.status)) ||
+      !["SUPPORTED", "DISPUTED", null].includes(item.verdict as "SUPPORTED" | "DISPUTED" | null) ||
+      !(typeof item.answer === "string" || item.answer === null) ||
+      !Array.isArray(item.evidenceDocumentIds) ||
+      !item.evidenceDocumentIds.every((id) => typeof id === "string") ||
+      !Array.isArray(item.selectedSourceObjectIds) ||
+      !item.selectedSourceObjectIds.every((id) => typeof id === "string") ||
+      typeof item.latencyMs !== "number" ||
+      !Number.isFinite(item.latencyMs) ||
+      item.latencyMs < 0 ||
+      !(typeof item.failureReason === "string" || item.failureReason === null) ||
+      !Array.isArray(item.extractionFailures) ||
+      !item.extractionFailures.every(
+        (failure) =>
+          isRecord(failure) &&
+          typeof failure.sourceNativeId === "string" &&
+          typeof failure.error === "string",
+      )
+    ) {
+      throw new TypeError("Frozen runtime contains an invalid case");
+    }
+    const status = item.status as FrozenConflictCase["status"];
+    if (
+      (status === "completed" &&
+        (item.answer === null || !["SUPPORTED", "DISPUTED"].includes(String(item.verdict)))) ||
+      (status !== "completed" && (item.answer !== null || item.verdict !== null))
+    ) {
+      throw new TypeError("Frozen runtime case status is inconsistent");
+    }
+    return item as unknown as FrozenConflictCase;
+  });
+  uniqueMap(cases, "Frozen runtime");
+  const summary = value.summary as Record<string, unknown>;
+  for (const key of ["attempted", "completed", "rejected", "failed"] as const) {
+    if (!Number.isSafeInteger(summary[key]) || Number(summary[key]) < 0) {
+      throw new TypeError("Frozen runtime has an invalid summary");
+    }
+  }
+  const expectedSummary = {
+    attempted: cases.length,
+    completed: cases.filter((item) => item.status === "completed").length,
+    rejected: cases.filter((item) => item.status === "rejected").length,
+    failed: cases.filter((item) => item.status === "failed").length,
+  };
+  if (
+    Object.entries(expectedSummary).some(
+      ([key, count]) => summary[key] !== count,
+    )
+  ) {
+    throw new TypeError("Frozen runtime summary does not match its cases");
+  }
+  const withoutDigest = { ...value };
+  delete withoutDigest.digest;
+  if (canonicalDigest(withoutDigest) !== value.digest) {
+    throw new TypeError("Frozen runtime digest does not match its contents");
+  }
+  return value as unknown as FrozenConflictRuntime;
 }

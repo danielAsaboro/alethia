@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertNoEvaluationLabels,
   freezeConflictRuntime,
+  parseFrozenConflictRuntime,
   parseRuntimeManifest,
   type ConflictExtractionArtifact,
   type ConflictPromotion,
@@ -158,6 +159,15 @@ describe("label-free ERB conflict runtime", () => {
     expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.digest).toBe(reordered.digest);
     expect(first).toEqual(reordered);
+    expect(parseFrozenConflictRuntime(JSON.parse(JSON.stringify(first)))).toEqual(first);
+    expect(() =>
+      parseFrozenConflictRuntime({
+        ...first,
+        cases: first.cases.map((item, index) =>
+          index === 0 ? { ...item, answer: "tampered" } : item,
+        ),
+      }),
+    ).toThrow(/digest/i);
     expect(() => assertNoEvaluationLabels(first)).not.toThrow();
   });
 });
