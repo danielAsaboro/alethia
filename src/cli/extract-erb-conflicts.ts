@@ -57,12 +57,14 @@ export interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v14";
+const promptVersion = "conflict-observation-v15";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
   "after",
+  "and",
   "does",
+  "for",
   "from",
   "have",
   "how",
@@ -181,27 +183,12 @@ export function rankCandidateDocuments(
   documents: CandidateDocument[],
   limit: number,
 ): CandidateDocument[] {
-  const questionTokens = tokens(runtimeCase.question);
-  const literalAnchors = queriedLiteralAnchors(runtimeCase.question);
   const ranked = documents
     .filter((document) => runtimeCase.sourceTypes.includes(document.sourceSystem))
-    .map((document) => {
-      const title = document.title.toLocaleLowerCase("en-US");
-      const body = document.body.toLocaleLowerCase("en-US");
-      const titleTokens = new Set(tokens(document.title));
-      const bodyTokenCounts = new Map<string, number>();
-      for (const token of tokenSequence(document.body)) {
-        bodyTokenCounts.set(token, (bodyTokenCounts.get(token) ?? 0) + 1);
-      }
-      const score = questionTokens.reduce(
-        (total, token) =>
-          total +
-          (titleTokens.has(token) || title.includes(token) ? 5 : 0) +
-          Math.min(3, bodyTokenCounts.get(token) ?? (body.includes(token) ? 1 : 0)),
-        0,
-      ) - contradictedAnchorCount(document.body, literalAnchors) * 8;
-      return { document, score };
-    })
+    .map((document) => ({
+      document,
+      score: scoreCandidateDocument(runtimeCase, document),
+    }))
     .sort(
       (left, right) =>
         right.score - left.score ||
@@ -223,6 +210,28 @@ export function rankCandidateDocuments(
         left.document.sourceObjectId.localeCompare(right.document.sourceObjectId),
     )
     .map(({ document }) => document);
+}
+
+export function scoreCandidateDocument(
+  runtimeCase: RuntimeConflictCase,
+  document: CandidateDocument,
+): number {
+  const questionTokens = tokens(runtimeCase.question);
+  const literalAnchors = queriedLiteralAnchors(runtimeCase.question);
+  const title = document.title.toLocaleLowerCase("en-US");
+  const body = document.body.toLocaleLowerCase("en-US");
+  const titleTokens = new Set(tokens(document.title));
+  const bodyTokenCounts = new Map<string, number>();
+  for (const token of tokenSequence(document.body)) {
+    bodyTokenCounts.set(token, (bodyTokenCounts.get(token) ?? 0) + 1);
+  }
+  return questionTokens.reduce(
+    (total, token) =>
+      total +
+      (titleTokens.has(token) || title.includes(token) ? 5 : 0) +
+      Math.min(3, bodyTokenCounts.get(token) ?? (body.includes(token) ? 1 : 0)),
+    0,
+  ) - contradictedAnchorCount(document.body, literalAnchors) * 8;
 }
 
 function sha256(value: string): string {

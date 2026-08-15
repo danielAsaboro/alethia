@@ -4,6 +4,7 @@ import {
   parseExtractErbConflictArgs,
   rankCandidateDocuments,
   revalidateCachedExtraction,
+  scoreCandidateDocument,
   toRuntimeConflictCase,
 } from "./extract-erb-conflicts";
 
@@ -236,6 +237,18 @@ describe("parseExtractErbConflictArgs", () => {
     );
 
     expect(ranked.map((item) => item.sourceObjectId)).toEqual(["z-experiment-ledger"]);
+    expect(
+      scoreCandidateDocument(
+        {
+          questionId: "qst_price_normalization",
+          question: "What price-normalization correctness was reported at temp=0 with strict JSON and canonicalization?",
+          questionType: "conflicting_info",
+          sourceTypes: ["google_drive"],
+          maximumDocuments: 1,
+        },
+        ranked[0]!,
+      ),
+    ).toBeGreaterThan(0);
   });
 
   it("revalidates a cached rejected response against its exact candidate set", () => {

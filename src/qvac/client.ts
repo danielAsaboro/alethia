@@ -44,7 +44,7 @@ export interface QvacConflictExtractionInput {
 export interface QvacConflictExtractionResult {
   observation: ConflictExtractionObservation;
   model: string;
-  promptVersion: "conflict-observation-v14";
+  promptVersion: "conflict-observation-v15";
   responseText: string;
 }
 
@@ -170,7 +170,7 @@ export class QvacClient {
       baseURL: this.baseUrl.replace(/\/$/, ""),
       apiKey: process.env.QVAC_API_KEY ?? "local-loopback-only",
     });
-    const promptVersion = "conflict-observation-v14" as const;
+    const promptVersion = "conflict-observation-v15" as const;
     const candidates = buildGroundingCandidates({
       question: input.question,
       sourceText: input.sourceText,
