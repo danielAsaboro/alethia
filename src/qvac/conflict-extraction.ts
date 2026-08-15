@@ -303,12 +303,18 @@ export function validateConflictSelection(input: {
   if (!result.success) {
     throw new TypeError("QVAC conflict selection returned an invalid schema");
   }
-  const candidate = input.candidates.find(
+  const selectedCandidate = input.candidates.find(
     (item) => item.index === result.data.candidateIndex,
   );
-  if (!candidate) {
+  if (!selectedCandidate) {
     throw new TypeError("QVAC conflict selection candidate does not exist");
   }
+  const candidate = !recoveredFromTruncation &&
+      /\bbreakpoints?\b/i.test(input.question ?? "")
+    ? (input.candidates.find((item) =>
+        valueIsRepresented(result.data.value, item.quote),
+      ) ?? selectedCandidate)
+    : selectedCandidate;
   let value = recoveredFromTruncation ? candidate.quote : result.data.value;
   if (!valueIsRepresented(value, candidate.quote)) {
     value = candidate.quote;

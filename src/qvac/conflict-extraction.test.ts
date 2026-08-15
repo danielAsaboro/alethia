@@ -380,6 +380,38 @@ describe("constrained conflict evidence selection", () => {
     );
   });
 
+  it("reanchors breakpoint evidence to the highest-ranked exact value span", () => {
+    const candidates = [
+      {
+        index: 0,
+        quote:
+          "Commercial ranges are illustrative; confirm with Sales Ops + Finance. Hosted monthly token breakpoints are 250k, 2M, and 10M.",
+      },
+      {
+        index: 1,
+        quote: "Hosted monthly token breakpoints are 250k, 2M, and 10M.",
+      },
+    ];
+
+    expect(
+      validateConflictSelection({
+        responseText: JSON.stringify({
+          candidateIndex: 1,
+          value: "250k, 2M, and 10M",
+          lifecycle: "applied",
+        }),
+        candidates,
+        sourceText: candidates.map(({ quote }) => quote).join("\n"),
+        question: "What monthly token volume discount breakpoints apply for Hosted pricing?",
+        subject: "hosted-pricing",
+        predicate: "conflict_answer",
+      }),
+    ).toMatchObject({
+      value: "250k, 2M, and 10M",
+      evidenceQuote: candidates[0].quote,
+    });
+  });
+
   it("keeps planned release-note behavior at proposal lifecycle", () => {
     const candidates = [{
       index: 0,

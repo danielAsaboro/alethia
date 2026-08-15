@@ -57,7 +57,7 @@ export interface ExtractionRecord {
 
 const usage =
   "Usage: npm run extract:erb-conflicts -- --documents <path> --manifest <path> --output <path> --limit <positive integer>";
-const promptVersion = "conflict-observation-v16";
+const promptVersion = "conflict-observation-v17";
 const model = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
 const stopWords = new Set([
   "about",
