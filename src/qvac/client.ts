@@ -28,6 +28,14 @@ export interface QvacExtractionResult {
   claims: Claim[];
   evidenceQuotes: Record<string, string>;
   model: string;
+  responseText: string;
+}
+
+export class QvacExtractionError extends Error {
+  constructor(message: string, readonly responseText: string) {
+    super(message);
+    this.name = "QvacExtractionError";
+  }
 }
 
 export interface QvacConflictExtractionInput {
@@ -133,11 +141,16 @@ export class QvacClient {
         sourceText: input.sourceText,
       }),
     });
-    const extracted = validateQvacExtraction({
-      responseText,
-      sourceText: input.sourceText,
-      allowedPredicates: input.predicates.map((item) => item.predicate),
-    });
+    let extracted;
+    try {
+      extracted = validateQvacExtraction({
+        responseText,
+        sourceText: input.sourceText,
+        allowedPredicates: input.predicates.map((item) => item.predicate),
+      });
+    } catch (error) {
+      throw new QvacExtractionError(error instanceof Error ? error.message : String(error), responseText);
+    }
     const evidenceQuotes: Record<string, string> = {};
     const claims = extracted.map((item) => {
       const id = stableId("claim", {
@@ -160,7 +173,7 @@ export class QvacClient {
         extractorVersion: `qvac:${this.model}`,
       };
     });
-    return { claims, evidenceQuotes, model: this.model };
+    return { claims, evidenceQuotes, model: this.model, responseText };
   }
 
   async extractConflictObservation(

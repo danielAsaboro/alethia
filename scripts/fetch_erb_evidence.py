@@ -23,6 +23,14 @@ DATASET_SPLIT = "test"
 DATASET_URL = "https://huggingface.co/datasets/onyx-dot-app/EnterpriseRAG-Bench"
 ALIGNMENT_TERMS = ("owner", "assignee", "reporter", "reviewer", "responsible")
 PERSON_NAME = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\b")
+HOLDOUT_TYPES = (
+    "basic",
+    "project_related",
+    "intra_document_reasoning",
+    "completeness",
+    "info_not_found",
+)
+HOLDOUT_SALT = "track01-holdout-v1"
 
 
 @dataclass(frozen=True)
@@ -171,6 +179,88 @@ def load_identity_selection(path: Path | str) -> EvidenceSelection:
     )
 
 
+def holdout_target_rows(path: Path | str) -> list[dict[str, Any]]:
+    rows = list(_read_jsonl(Path(path)))
+    targets: list[dict[str, Any]] = []
+    for question_type in HOLDOUT_TYPES:
+        candidates = [
+            row for row in rows
+            if row.get("question_type") == question_type
+            and isinstance(row.get("question_id"), str)
+            and str(row["question_id"]) not in {f"qst_{index:04d}" for index in range(1, 6)}
+        ]
+        if not candidates:
+            raise ValueError(f"canonical questions lack holdout category {question_type}")
+        targets.append(min(
+            candidates,
+            key=lambda row: hashlib.sha256(
+                f"{HOLDOUT_SALT}\0{question_type}\0{row['question_id']}".encode()
+            ).hexdigest(),
+        ))
+    return targets
+
+
+def load_holdout_selection(path: Path | str) -> EvidenceSelection:
+    rows = list(_read_jsonl(Path(path)))
+    targets = holdout_target_rows(path)
+    target_ids = {str(row["question_id"]) for row in targets}
+    acquisition_rows = list(targets)
+    for target in targets:
+        target_sources = set(target.get("source_types", []))
+        decoys = [
+            row for row in rows
+            if row.get("question_id") not in target_ids
+            and target_sources.intersection(row.get("source_types", []))
+        ]
+        acquisition_rows.extend(sorted(
+            decoys,
+            key=lambda row: hashlib.sha256(
+                f"{HOLDOUT_SALT}\0decoy\0{target['question_id']}\0{row.get('question_id')}".encode()
+            ).hexdigest(),
+        )[:2])
+    unique_acquisition_rows = list({str(row["question_id"]): row for row in acquisition_rows}.values())
+    selected = _selection_from_rows(
+        unique_acquisition_rows,
+        mode="holdout-v1",
+        rule="one salted deterministic target per supported non-conflict category plus two same-source decoy questions; labels remain acquisition-only",
+        include=lambda _row: True,
+    )
+    return EvidenceSelection(
+        mode=selected.mode,
+        question_ids=tuple(str(row["question_id"]) for row in targets),
+        document_ids=selected.document_ids,
+        selection_rule=selected.selection_rule,
+    )
+
+
+def write_holdout_runtime(path: Path, questions: Path) -> None:
+    category = {
+        "basic": "simple_lookup",
+        "project_related": "multi_hop",
+        "intra_document_reasoning": "multi_hop",
+        "completeness": "knowledge_boundary",
+        "info_not_found": "knowledge_boundary",
+    }
+    cases = []
+    for row in holdout_target_rows(questions):
+        source_types = row.get("source_types")
+        if not isinstance(source_types, list) or not all(isinstance(item, str) for item in source_types):
+            raise ValueError(f"{row.get('question_id')} has invalid source_types")
+        cases.append({
+            "id": str(row["question_id"]),
+            "question": str(row["question"]),
+            "category": category[str(row["question_type"])],
+            "execution": {
+                "sourceSystems": sorted(set(source_types)),
+                "maximumDocuments": 3,
+                "coverageState": "partial",
+                "retrievalAlgorithm": "source-diverse-lexical-v2",
+            },
+        })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"schemaVersion": 2, "cases": cases}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def load_selection(mode: str, questions: Path) -> EvidenceSelection:
     if mode == "conflicts":
         return load_conflict_selection(questions)
@@ -178,6 +268,8 @@ def load_selection(mode: str, questions: Path) -> EvidenceSelection:
         return load_alignment_selection(questions)
     if mode == "identity-discovery":
         return load_identity_selection(questions)
+    if mode == "holdout-v1":
+        return load_holdout_selection(questions)
     raise ValueError(f"unsupported selection mode: {mode}")
 
 
@@ -293,17 +385,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--selection",
         required=True,
-        choices=("conflicts", "alignment-discovery", "identity-discovery"),
+        choices=("conflicts", "alignment-discovery", "identity-discovery", "holdout-v1"),
     )
     parser.add_argument("--questions", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--runtime", type=Path)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     selection = load_selection(args.selection, args.questions)
+    if args.selection == "holdout-v1":
+        if args.runtime is None:
+            raise ValueError("--runtime is required for holdout-v1")
+        write_holdout_runtime(args.runtime, args.questions)
     manifest = acquire_documents(
         selection,
         _dataset_rows(),

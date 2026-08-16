@@ -31,7 +31,11 @@
     "discover:erb-alignment": "tsx src/cli/discover-erb-alignment.ts",
     "audit:herb-identities": "tsx src/cli/audit-herb-identities.ts",
     "audit:erb-versions": "tsx src/cli/audit-erb-versions.ts",
-    "evaluate:first-prize": "tsx src/cli/evaluate-first-prize.ts"
+    "evaluate:first-prize": "tsx src/cli/evaluate-first-prize.ts",
+    "holdout:freeze": "tsx src/cli/freeze-holdout.ts",
+    "holdout:run": "tsx src/cli/run-holdout.ts",
+    "holdout:execute:erb": "tsx src/cli/execute-erb-holdout.ts",
+    "holdout:score": "tsx src/cli/score-holdout.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.31",
