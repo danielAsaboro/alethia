@@ -9,7 +9,7 @@ import type { CompletedEvaluationAttemptV2, EvaluationAttemptV2 } from "@/evalua
 import { assertFrozenHoldout, runFrozenHoldout, type FrozenHoldout } from "@/evaluation/holdout";
 import { HydraRepository, type GraphWriteBundle } from "@/hydra/client";
 import { ErbAdapter } from "@/ingestion/erb-adapter";
-import { mapQvacClaimToGraph, QvacClient, QvacExtractionError } from "@/qvac/client";
+import { GROUNDED_CLAIMS_PROMPT_VERSION, mapQvacClaimToGraph, QvacClient, QvacExtractionError } from "@/qvac/client";
 import { qvacRuntimeModel } from "@/qvac/model";
 
 interface Args { freeze: string; documents: string; output: string }
@@ -71,6 +71,7 @@ async function main(): Promise<void> {
   if (sha256(documentBytes) !== frozen.acquisitionDigest) throw new TypeError("Canonical acquisition digest does not match frozen holdout");
   const runtimeModel = qvacRuntimeModel(frozen.model.alias);
   if (runtimeModel.modelSha256 !== frozen.model.sha256) throw new TypeError("Pinned QVAC model digest does not match frozen holdout");
+  if (frozen.extractionPromptVersion !== GROUNDED_CLAIMS_PROMPT_VERSION) throw new TypeError("Grounded extraction prompt version does not match frozen holdout");
   const documents = await documentsFrom(path.resolve(args.documents));
   const hydra = repository();
   const qvac = new QvacClient();

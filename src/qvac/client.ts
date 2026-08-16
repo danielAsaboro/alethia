@@ -11,6 +11,8 @@ import {
 } from "./conflict-extraction";
 import { validateQvacExtraction } from "./extraction";
 
+export const GROUNDED_CLAIMS_PROMPT_VERSION = "grounded-claims-v1";
+
 export interface QvacPredicate {
   predicate: string;
   description: string;
