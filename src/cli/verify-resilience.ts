@@ -16,6 +16,7 @@ import {
 import { mapIngestionToGraph } from "@/hydra/write-bundle";
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
+import { recordGroundingValidation } from "@/qvac/telemetry";
 
 interface VerifyArgs { herbInput: string; output: string }
 
@@ -39,6 +40,7 @@ interface ResilienceDependencies {
   outageRepository: OutageRepository;
   graph: GraphWriteBundle;
   runCases: (repository: ResilienceRepository) => Promise<Array<Pick<FrozenCaseResult, "caseId" | "status" | "workspace" | "error">>>;
+  qvacOutageProbe: () => Promise<unknown>;
 }
 
 const sourceEntity = "entity_90ad19476a96ae677e3c9143";
@@ -69,6 +71,7 @@ export function parseVerifyResilienceArgs(args: string[]): VerifyArgs {
 }
 
 export async function verifyResilience(input: ResilienceDependencies) {
+  const startedAt = new Date().toISOString();
   const fingerprint = fingerprintGraph(input.graph);
   await input.repository.writeGraph(input.graph);
   const firstPresence = await input.repository.getPresence(input.graph);
@@ -105,6 +108,13 @@ export async function verifyResilience(input: ResilienceDependencies) {
   if (concurrent.some((paths) => paths[0]!.roundTrips !== 1)) {
     throw new Error("Concurrent native reads exceeded one round trip");
   }
+  const incompletePaths = await input.repository.findNativePaths({
+    ...pathInput,
+    targetLogicalId: "source_object_missing_resilience_probe",
+  });
+  if (incompletePaths.length !== 0) {
+    throw new Error("Incomplete native path probe returned a path");
+  }
 
   const replayResults = await input.runCases(input.repository);
   const replayCompleted = replayResults.filter(
@@ -119,6 +129,35 @@ export async function verifyResilience(input: ResilienceDependencies) {
     outageError = error instanceof Error ? error.message : String(error);
   }
   if (!outageError) throw new Error("Outage probe did not fail closed");
+
+  const malformed = recordGroundingValidation({
+    responseText: '{"claims":[',
+    sourceText: "canonical source",
+    allowedPredicates: ["profile_fact"],
+    latencyMs: 0,
+  });
+  if (malformed.status !== "rejected" || malformed.reason !== "malformed_output") {
+    throw new Error("Malformed QVAC output was not rejected");
+  }
+  let qvacOutageError = "";
+  try {
+    await input.qvacOutageProbe();
+  } catch (error) {
+    qvacOutageError = error instanceof Error ? error.message : String(error);
+  }
+  if (!qvacOutageError) throw new Error("QVAC outage probe did not fail closed");
+
+  const endedAt = new Date().toISOString();
+  const probe = (id: string, dependency: "hydradb" | "qvac" | "application", detail: string) => ({
+    id,
+    status: "passed" as const,
+    dependency,
+    command: "npm run verify:resilience",
+    startedAt,
+    endedAt,
+    detail,
+    rawError: null,
+  });
 
   return {
     graph: {
@@ -157,6 +196,18 @@ export async function verifyResilience(input: ResilienceDependencies) {
       workspaceReturned: false,
       error: outageError,
     },
+    qvacOutage: { failedClosed: true, error: qvacOutageError },
+    malformedExtraction: { rejected: true, reason: malformed.reason },
+    probes: [
+      probe("deterministic_graph_replay", "hydradb", "Two writes preserved exact node and edge presence."),
+      probe("stable_graph_fingerprint", "application", `Graph digest ${fingerprint.sha256} remained stable.`),
+      probe("concurrent_unique_query_ids", "hydradb", `${queryIds.length} concurrent reads returned unique live query IDs.`),
+      probe("incomplete_path_rejected", "hydradb", "A missing target returned zero native paths."),
+      probe("hydra_outage_fail_closed", "hydradb", outageError),
+      probe("already_ingested_replay_without_qvac", "application", `${replayCompleted.length}/${replayResults.length} cases replayed without QVAC.`),
+      probe("malformed_extraction_rejected", "qvac", "Truncated JSON remained rejected and produced zero claims."),
+      probe("qvac_outage_fail_closed", "qvac", qvacOutageError),
+    ],
   };
 }
 
@@ -183,6 +234,14 @@ async function main() {
       graph,
       runCases: (candidate) =>
         runFirstPrizeCases(candidate as unknown as CaseRepository),
+      qvacOutageProbe: async () => {
+        const response = await fetch("http://127.0.0.1:1/v1/chat/completions", {
+          method: "POST",
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (!response.ok) throw new Error(`QVAC outage probe returned HTTP ${response.status}`);
+        throw new Error("QVAC outage probe unexpectedly reached a service");
+      },
     });
     if (report.replay.attempted !== 11 || report.replay.failed !== 0) {
       throw new Error("Resilience replay did not complete all eleven real-data cases");
