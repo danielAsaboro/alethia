@@ -23,6 +23,28 @@ const ids = {
 const complete: CoverageAssessment = { sufficient: true, missing: [] };
 const usage = "Usage: npm run measure:ablations -- --output <path>";
 
+function extractorRevision(row: GraphObservationEvidence): number {
+  const match = row.extractorVersion.match(/:v(\d+)$/i);
+  return match ? Number(match[1]) : 0;
+}
+
+export function latestObservationsByClaim(
+  observations: GraphObservationEvidence[],
+  claimIds: string[],
+): GraphObservationEvidence[] {
+  return [...new Set(claimIds)]
+    .map((claimId) =>
+      observations
+        .filter((row) => row.claimLogicalId === claimId)
+        .sort(
+          (left, right) =>
+            extractorRevision(right) - extractorRevision(left) ||
+            right.observationLogicalId.localeCompare(left.observationLogicalId),
+        )[0],
+    )
+    .filter((row): row is GraphObservationEvidence => row !== undefined);
+}
+
 function observationClaim(row: GraphObservationEvidence): Claim {
   if (row.method !== "qvac" && row.method !== "deterministic") {
     throw new TypeError("Ablation observation has an unsupported extraction method");
@@ -76,8 +98,10 @@ export async function measurePolicyAblations(repository: HydraRepository) {
   if (!conflictDecision || !identityDecision || roleRows.length === 0) {
     throw new Error("Required real HydraDB ablation inputs are missing");
   }
-  const conflictClaims = observations
-    .filter((item) => conflictDecision.claimIds.includes(item.claimLogicalId))
+  const conflictClaims = latestObservationsByClaim(
+    observations,
+    conflictDecision.claimIds,
+  )
     .map(observationClaim);
   if (conflictClaims.length !== 2) throw new Error("Conflict ablation requires two real claims");
   const conflict: EvidenceConflict = {

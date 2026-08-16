@@ -48,7 +48,7 @@ const ids = {
   conflictEntity: "entity_539b64e1d8320189f27e94fd",
   conflict: "conflict_ba37432da763e77f186ba072",
   handshakeEntity: "entity_bbbccb0c3d43286a9836f543",
-  handshakeConflict: "conflict_f83ddaaaa1d7e8f3623f4e8b",
+  handshakeConflict: "conflict_524fe5b1878058507b93dd95",
   fileOwnerTerm: "source_term_390378ec7210fb25b3662ba0",
   opportunityOwnerTerm: "source_term_0354c371ffe861934bed28e6",
   identityDecision: "identity_candidate_decision_cfbaaae570ab4b5c306e83af",

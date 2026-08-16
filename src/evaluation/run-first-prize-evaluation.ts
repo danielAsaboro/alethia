@@ -45,7 +45,7 @@ export async function runFirstPrizeCases(repository: CaseRepository): Promise<Fr
 
 const scoringLabels = {
   "streamly-credit-conflict": { verdict: "SUPPORTED", answerIncludes: "30%" },
-  "handshake-ttl-conflict": { verdict: "DISPUTED", answerIncludes: "120" },
+  "handshake-ttl-conflict": { verdict: "SUPPORTED", answerIncludes: "120" },
   "owner-is-not-owner": { verdict: "SUPPORTED", answerIncludes: "distinct" },
   "david-taylor-collision": { verdict: "SUPPORTED", answerIncludes: "two people" },
   "favorite-lunch-boundary": { verdict: "UNKNOWN", answerIncludes: "Not enough evidence" },

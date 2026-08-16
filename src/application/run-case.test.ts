@@ -64,25 +64,27 @@ describe("runJudgeCase", () => {
     await expect(runJudgeCase("streamly-credit-conflict", missing)).rejects.toThrow(/not ready/);
   });
 
-  it("returns DISPUTED when Hydra has competing observations and no winning claim", async () => {
-    const disputed = repository();
-    disputed.findObservationEvidence = async () => [
+  it("returns the 120-second winner when updated guidance supersedes 180 seconds", async () => {
+    const resolved = repository();
+    resolved.findObservationEvidence = async () => [
       { claimLogicalId: "c120", observationLogicalId: "o120", sourceLogicalId: "s120", predicate: "conflict_answer", object: { kind: "literal", value: "120 seconds" }, method: "qvac", extractorVersion: "v", evidenceQuote: "Handshake tokens now default to TTL 120 seconds (was 180s)", sourceSystem: "confluence", sourceNativeId: "doc-a" },
       { claimLogicalId: "c180", observationLogicalId: "o180", sourceLogicalId: "s180", predicate: "conflict_answer", object: { kind: "literal", value: "180 seconds" }, method: "qvac", extractorVersion: "v", evidenceQuote: "handshake tokens are single-use and TTL-limited (default 180s)", sourceSystem: "google_drive", sourceNativeId: "doc-b" },
     ];
-    disputed.findConflictDecision = async () => ({
-      conflictId: "conflict_f83ddaaaa1d7e8f3623f4e8b",
-      resolution: "unresolved",
+    resolved.findConflictDecision = async () => ({
+      conflictId: "conflict_524fe5b1878058507b93dd95",
+      resolution: "left",
       claimIds: ["c120", "c180"],
       leftClaimId: "c120",
       rightClaimId: "c180",
+      policyId: "policy_grounded_supersession_v2",
+      winningClaimId: "c120",
     });
 
-    const workspace = await runJudgeCase("handshake-ttl-conflict", disputed);
-    expect(workspace.verdict).toBe("DISPUTED");
-    expect(workspace.answer).toMatch(/120|180/);
+    const workspace = await runJudgeCase("handshake-ttl-conflict", resolved);
+    expect(workspace.verdict).toBe("SUPPORTED");
+    expect(workspace.answer).toMatch(/120/);
     expect(workspace.evidence).toHaveLength(2);
-    expect(workspace.decision.status).toBe("unresolved");
+    expect(workspace.decision.status).toBe("resolved");
   });
 
   it("fails closed when the observation path omits a claim considered by the conflict", async () => {

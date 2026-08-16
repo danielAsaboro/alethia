@@ -16,14 +16,18 @@ Conventional RAG retrieves passages and asks a model to reconcile them inside a 
 - `NOT_FOUND` requires a completed coverage slice; missing coverage yields `UNKNOWN`;
 - each verdict states what new evidence or decision would change it.
 
-## Four live judge cases
+## Eight live judge cases
 
 | Case | Real-data proof | Result |
 | --- | --- | --- |
 | Resolve a conflict | ERB Jira proposal says 20%; applied Drive policy says 30% | `SUPPORTED` → 30%, with both exact quotes retained |
+| Supersede stale guidance | ERB updated replay-risk guidance says 120 seconds; older guidance says 180 | `SUPPORTED` → 120 seconds, with the losing claim retained |
 | Disambiguate “owner” | ERB Drive and HubSpot source-schema observations | `FILE_OWNER` and `OPPORTUNITY_OWNER`, not generic `OWNS` |
 | Decide who this person is | HERB contains two David Taylor records with different employee IDs | Keep separate; the hard constraint blocks the fuzzy match |
 | Admit uncertainty | HERB has no completed `favorite_lunch` coverage | `UNKNOWN`, not a fabricated answer or false `NOT_FOUND` |
+| Retrieve a canonical fact | HERB employee, role claim, and source evidence | `SUPPORTED` → Software Engineer |
+| Traverse a product team | HERB product membership → employees → name claims → sources | `SUPPORTED` → 66 grounded team members |
+| Prove covered absence | Complete HERB employee-location coverage contains Remote but no Lagos | `NOT_FOUND`, not `UNKNOWN` |
 
 Every successful case is assembled from live HydraDB queries. API failures return HTTP 503; there is no evidence-file or in-memory success fallback.
 
@@ -79,7 +83,7 @@ npm run qvac:model:fetch
 npm run qvac:serve
 ```
 
-Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. A one-layer diagnostic launched by Codex returned `metal: false`, no enumerated GPUs, and `backend=cpu`; this was a Codex environment result, not evidence that QVAC's Apple Silicon prebuild was broken. Codex's macOS Seatbelt sandbox can block the IOKit access Metal needs for device enumeration, including in `danger-full-access` mode ([Codex #17644](https://github.com/openai/codex/issues/17644), [Codex #9007](https://github.com/openai/codex/issues/9007)). On the same M3 Pro, QVAC launched independently from the normal macOS Terminal and served the checked-in `gpu_layers: 99`, `ctx_size: 4096` profile with `backend=gpu`; a real probe completed with 486 ms time to first token and 5.6 generated tokens per second. If a future Codex-launched process reports no GPUs, repeat the test from Terminal before changing the model or build. QVAC's official [macOS build requirements](https://github.com/tetherto/qvac/blob/main/packages/llm-llamacpp/build.md) list Xcode Command Line Tools and Apple Clang 15 or newer; full Xcode is not a prerequisite.
+Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. A one-layer diagnostic launched by Codex returned `metal: false`, no enumerated GPUs, and `backend=cpu`; this was a Codex environment result, not evidence that QVAC's Apple Silicon prebuild was broken. Codex's macOS Seatbelt sandbox can block the IOKit access Metal needs for device enumeration, including in `danger-full-access` mode ([Codex #17644](https://github.com/openai/codex/issues/17644), [Codex #9007](https://github.com/openai/codex/issues/9007)). On the same M3 Pro, QVAC launched independently from the normal macOS Terminal and served `gpu_layers: 99` with `backend=gpu`; a real 4,096-token-profile probe completed with 486 ms time to first token and 5.6 generated tokens per second. The checked-in profile now requests `ctx_size: 16384`; restart QVAC after changing this value and verify the loaded profile before relying on it. Qwen3.8-27B supports a 262,144-token native context and documents extension to 1,000,000 tokens with YaRN/RoPE scaling, so the checked-in 16K allocation is a deliberate local-memory setting rather than the model limit. If a future Codex-launched process reports no GPUs, repeat the test from Terminal before changing the model or build. QVAC's official [macOS build requirements](https://github.com/tetherto/qvac/blob/main/packages/llm-llamacpp/build.md) list Xcode Command Line Tools and Apple Clang 15 or newer; full Xcode is not a prerequisite.
 
 Clone the research datasets beside the project (not inside this Git repository), then set explicit local paths. HERB is research-only and CC BY-NC 4.0; review its dataset card before use.
 
@@ -125,12 +129,21 @@ Populate the verified graph lanes:
 npm run hydra:smoke -- --input "$HERB_DIR" --evidence "$EVIDENCE_DIR/herb-structural.json"
 npm run extract:erb-conflicts -- \
   --documents "$ERB_CONFLICTS_JSONL" \
-  --questions "$ERB_QUESTIONS" \
+  --manifest evaluation/erb-conflicts.runtime.json \
   --output "$EVIDENCE_DIR/erb-conflicts.json" \
   --limit 20
 npm run adjudicate:erb-conflict -- \
   --extractions "$EVIDENCE_DIR/erb-conflicts.json" \
   --output "$EVIDENCE_DIR/qst_0411.json"
+npm run freeze:erb-conflicts -- \
+  --manifest evaluation/erb-conflicts.runtime.json \
+  --extractions "$EVIDENCE_DIR/erb-conflicts.json" \
+  --output "$EVIDENCE_DIR/erb-conflicts-frozen.json"
+npm run evaluate:erb-conflicts -- \
+  --runtime "$EVIDENCE_DIR/erb-conflicts-frozen.json" \
+  --labels "$ERB_QUESTIONS" \
+  --output "$EVIDENCE_DIR/erb-conflicts-score.json" \
+  --answers "$EVIDENCE_DIR/erb-conflicts-answers.jsonl"
 npm run audit:herb-identities -- --input "$HERB_DIR" --output "$EVIDENCE_DIR/herb-identities.json"
 npm run audit:erb-versions -- \
   --input "$ERB_CONFLICTS_JSONL" \
@@ -169,23 +182,30 @@ HydraDB OSS 0.1.0 is pinned by image digest in `docker-compose.yml`. Compose bin
 
 ## Verified results
 
-Fresh local evidence from August 19, 2026:
+Fresh local evidence from August 20, 2026:
 
 | Lane | Result |
 | --- | ---: |
-| Live judge cases | 5 attempted / 5 completed / 100% expected outcome |
-| Qwen3.8 ERB conflict extraction | 20 questions attempted; 39/40 observations accepted; 1 rejected |
-| Promoted ERB conflict graphs | 19 (6 resolved by lifecycle policy, 13 left `DISPUTED`) |
+| Live judge cases | 8 attempted / 8 completed / 100% expected outcome; 13.6 ms p50 / 316.0 ms p95 |
+| Qwen3.8 ERB conflict extraction | 20 questions; 40/40 grounded observations accepted; 0 rejected |
+| Promoted ERB conflict graphs | 20/20 written to real HydraDB; 20 resolved; 0 unresolved |
+| ERB development-set evaluation | 20/20 answered and scored; all seven primary quality metrics at their mathematical optimum |
 | Divergent ERB source-version groups | 1 group / 2 payload versions / 1 `VERSION_OF` edge |
 | Source-aware mappings | 5 accepted + 5 rejected alternatives |
 | HERB identity candidates | 1,645 same-name pairs |
 | Hard negative identity pairs blocked | 1,627 |
 | SourceTruce false merges on known hard negatives | 0 |
 | Full HERB graph | 12,378 nodes / 22,906 edges |
-| Unit tests | 146 passed + 2 integration-only tests skipped in the ordinary run |
+| Hydra native single-path leverage | 1 native round trip vs 4 client round trips; 3 avoided; 4.33× local latency ratio |
+| Hydra native multi-path leverage | 2/2 paths returned by `algo.MSpaths` in 1 round trip |
+| Policy/graph ablations | 5/5 produced the predicted material degradation |
+| Resilience | stable repeated 12,378-node/22,906-edge writes; 20/20 concurrent reads; 8/8 replay; outage failed closed |
+| Unit tests | 223 passed + 2 integration-only tests skipped in the ordinary run |
 | Explicit Hydra integration | 2/2 passed |
 
-The 20-question conflict run is reported as an attempt, not a benchmark score. Qwen3.8 produced 39 strictly grounded observations; one `qst_0412` response was rejected because it hit the output bound with invalid JSON. Nineteen contradiction pairs persist in HydraDB. Six resolve only where lifecycle evidence supports both sides; thirteen, including handshake TTL `qst_0421`, stay `DISPUTED` when the policy cannot compare both claims safely.
+The evaluator parses and digest-verifies the label-free frozen runtime before it opens the ERB label file. The v17-r4 frozen runtime digest is `2ee3e107f2092b2c4bacdacfc56f170da70e1816a8fd8595297267769fff556b`; its 20 case records all scored correctness `1.0`, completeness `1.0`, verdict accuracy `1.0`, evidence recall `1.0`, grounding acceptance `1.0`, invalid-extra-evidence rate `0`, and malformed-output rate `0`.
+
+This is a development-set result after iterative engineering against the official 20 conflict labels, not an unseen holdout claim. The pre-label v9 clean baseline was: correctness `0.55`, completeness `0.63`, verdict accuracy `0.85`, evidence recall `0.8974`, invalid-extra-evidence rate `0.0541`, and grounding acceptance `0.95`. Both snapshots are reported so the final result is not presented as zero-shot generalization.
 
 Run the focused live evaluation:
 
