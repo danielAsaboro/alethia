@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "cases": [
+    {
+      "id": "streamly-credit-conflict",
+      "question": "What percentage of Streamly AI's burst credits is actually reserved for priority routes?",
+      "category": "conflict",
+      "execution": {
+        "title": "Resolve a conflict",
+        "summary": "Compare contradictory infrastructure records and retain the losing claim.",
+        "dataset": "Enterprise RAG Bench",
+        "version": "qst_0411-v1",
+        "sourceSystems": ["jira", "google_drive"]
+      }
+    },
+    {
+      "id": "handshake-ttl-conflict",
+      "question": "Default TTL for the cross-account GPU warm-pool handoff handshake token?",
+      "category": "conflict",
+      "execution": {
+        "title": "Adjudicate incomplete lifecycle evidence",
+        "summary": "Compare contradictory operational guidance without inferring missing lifecycle metadata.",
+        "dataset": "Enterprise RAG Bench",
+        "version": "qst_0421-v2",
+        "sourceSystems": ["confluence"]
+      }
+    },
+    {
+      "id": "owner-is-not-owner",
+      "question": "Does Google Drive owner mean the same relationship as HubSpot opportunity owner?",
+      "category": "ontology_alignment",
+      "execution": {
+        "title": "Disambiguate owner semantics",
+        "summary": "Compare identical field surfaces using source context and domain constraints.",
+        "dataset": "Enterprise RAG Bench",
+        "version": "alignment-registry-v1",
+        "sourceSystems": ["google_drive", "hubspot"]
+      }
+    },
+    {
+      "id": "david-taylor-collision",
+      "question": "Should these two David Taylor records be merged into one employee?",
+      "category": "entity_resolution",
+      "execution": {
+        "title": "Resolve an identity collision",
+        "summary": "Evaluate a same-name pair with verified identity constraints.",
+        "dataset": "Salesforce HERB",
+        "version": "resolver-v2",
+        "sourceSystems": ["herb"]
+      }
+    },
+    {
+      "id": "favorite-lunch-boundary",
+      "question": "What is this employee's favorite lunch?",
+      "category": "knowledge_boundary",
+      "execution": {
+        "title": "Admit incomplete coverage",
+        "summary": "Distinguish missing evidence from a proven absence.",
+        "dataset": "Salesforce HERB",
+        "version": "coverage-v1",
+        "sourceSystems": ["herb"]
+      }
+    },
+    {
+      "id": "charlie-davis-role",
+      "question": "What is Charlie Davis's role?",
+      "category": "simple_lookup",
+      "execution": {
+        "title": "Retrieve a canonical fact",
+        "summary": "Resolve an employee and retrieve a grounded role claim.",
+        "dataset": "Salesforce HERB",
+        "version": "herb-role-v1",
+        "sourceSystems": ["herb"]
+      }
+    },
+    {
+      "id": "actiongenie-team",
+      "question": "Who works on the ActionGenie product team?",
+      "category": "multi_hop",
+      "execution": {
+        "title": "Traverse a product team",
+        "summary": "Traverse product membership to canonical employee claims and evidence.",
+        "dataset": "Salesforce HERB",
+        "version": "herb-team-v1",
+        "sourceSystems": ["herb"]
+      }
+    },
+    {
+      "id": "charlie-davis-lagos",
+      "question": "Is Charlie Davis located in Lagos?",
+      "category": "knowledge_boundary",
+      "execution": {
+        "title": "Prove a fact is not found",
+        "summary": "Use complete location coverage to distinguish absence from uncertainty.",
+        "dataset": "Salesforce HERB",
+        "version": "coverage-v1",
+        "sourceSystems": ["herb"]
+      }
+    }
+  ]
+}

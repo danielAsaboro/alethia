@@ -12,10 +12,10 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain("SourceTruce");
     expect(html).toContain("Enterprise evidence court");
     expect(html).toContain("Resolve a conflict");
-    expect(html).toContain("Supersede stale guidance");
-    expect(html).toContain("Disambiguate “owner”");
-    expect(html).toContain("Decide who this person is");
-    expect(html).toContain("Admit uncertainty");
+    expect(html).toContain("Adjudicate incomplete lifecycle evidence");
+    expect(html).toContain("Disambiguate owner semantics");
+    expect(html).toContain("Resolve an identity collision");
+    expect(html).toContain("Admit incomplete coverage");
     expect(html).toContain("Retrieve a canonical fact");
     expect(html).toContain("Traverse a product team");
     expect(html).toContain("Prove a fact is not found");

@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
+
 import type { CaseWorkspace } from "@/application/run-case";
 import type { JudgeCaseKind } from "@/cases/case-registry";
-import { scoreFirstPrizeResults, type FrozenCaseResult } from "./run-first-prize-evaluation";
+import type { EvaluationLabelV2 } from "./contract";
+import {
+  freezeFirstPrizeResults,
+  scoreFirstPrizeResultsV2,
+  type FrozenCaseResult,
+} from "./run-first-prize-evaluation";
 
 function frozenResult(
   caseId: string,
   kind: JudgeCaseKind,
   verdict: CaseWorkspace["verdict"],
   answer: string,
+  evidence: CaseWorkspace["evidence"] = [{ source: "slack · losing-doc", quote: "30% was proposed", value: "30%" }],
 ): FrozenCaseResult {
   return {
     caseId,
@@ -17,8 +24,8 @@ function frozenResult(
       case: { id: caseId, kind, title: "x", question: "q", summary: "s", dataset: "ERB", version: "v" },
       verdict,
       answer,
-      evidence: [{ source: "s", quote: "q" }, { source: "t", quote: "r" }],
-      decision: { status: "resolved", reason: "policy" },
+      evidence,
+      decision: { status: kind === "conflict" ? "resolved" : "supported", reason: "policy" },
       coverage: { sufficient: true, detail: "complete" },
       counterfactual: "later claim",
       traversal: "graph",
@@ -39,30 +46,66 @@ function frozenResult(
   };
 }
 
-describe("first-prize evaluation separation", () => {
-  it("scores only after receiving frozen runtime workspaces", () => {
-    const result = frozenResult("streamly-credit-conflict", "conflict", "SUPPORTED", "30%");
-    const report = scoreFirstPrizeResults([result], { records: 698, acceptedExactLinks: 18, sameNameCandidates: 1645, hardNegativePairs: 1627, sourceTruceFalseMerges: 0, graphNodes: 12378, graphEdges: 22906 });
-    expect(report.caseAccuracy).toBe(1);
-    expect(report.lanes.identity.naiveFuzzyFalseMerges).toBe(1627);
-    expect(JSON.stringify(result)).not.toMatch(/gold_answer|answer_facts|expected_doc_ids/);
+function label(overrides: Partial<EvaluationLabelV2> = {}): EvaluationLabelV2 {
+  return {
+    caseId: "streamly-credit-conflict",
+    expectedVerdict: "SUPPORTED",
+    expectedFacts: [{ kind: "percentage", value: 30 }],
+    expectedEvidenceDocumentIds: ["winning-doc"],
+    expectedRelationships: ["ASSERTS", "SUPPORTED_BY"],
+    forbiddenRelationships: ["DECIDED_BY"],
+    requiredCoverageState: "complete",
+    expectedConflictState: "resolved",
+    requiredGraphProof: {
+      requiredRelationships: ["ASSERTS", "SUPPORTED_BY"],
+      minimumPathLength: 2,
+      maximumPathLength: 2,
+      requireLiveQueryId: true,
+    },
+    expectedIdentityState: "not_applicable",
+    expectedAlignmentState: "not_applicable",
+    ...overrides,
+  };
+}
+
+describe("generic judge evaluation separation", () => {
+  it("does not score a losing-evidence substring as the structured answer", () => {
+    const result = frozenResult(
+      "streamly-credit-conflict",
+      "conflict",
+      "SUPPORTED",
+      "20%",
+      [
+        { source: "slack · losing-doc", quote: "The rejected proposal was 30%", value: "30%" },
+        { source: "drive · winning-doc", quote: "The applied value is 20%", value: "20%" },
+      ],
+    );
+
+    const report = scoreFirstPrizeResultsV2([result], [label()]);
+
+    expect(report.answerCorrectness).toBe(0);
+    expect(report.evidence.recall).toBe(1);
   });
 
-  it("scores the simple, multi-hop, and proven-absence lanes", () => {
-    const results = [
-      frozenResult("charlie-davis-role", "simple_lookup", "SUPPORTED", "Software Engineer"),
-      frozenResult("actiongenie-team", "multi_hop", "SUPPORTED", "66 team members: ..."),
-      frozenResult("charlie-davis-lagos", "knowledge_boundary", "NOT_FOUND", "No Lagos location was found."),
-    ];
-    const report = scoreFirstPrizeResults(results, {
-      records: 0,
-      acceptedExactLinks: 0,
-      sameNameCandidates: 0,
-      hardNegativePairs: 0,
-      sourceTruceFalseMerges: 0,
-      graphNodes: 0,
-      graphEdges: 0,
-    });
-    expect(report.caseAccuracy).toBe(1);
+  it("freezes and digests runtime results before labels are applied", () => {
+    const result = frozenResult("streamly-credit-conflict", "conflict", "SUPPORTED", "30%", [
+      { source: "drive · winning-doc", quote: "The applied value is 30%", value: "30%" },
+    ]);
+    const frozen = freezeFirstPrizeResults([result]);
+
+    expect(frozen.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.parse(frozen.serialized)).toEqual([result]);
+    expect(frozen.serialized).not.toMatch(/expectedVerdict|expectedFacts|expectedEvidence/);
+    expect(scoreFirstPrizeResultsV2(JSON.parse(frozen.serialized), [label()]).answerCorrectness).toBe(1);
+  });
+
+  it("keeps failed judge cases in attempted denominators", () => {
+    const report = scoreFirstPrizeResultsV2(
+      [{ caseId: "streamly-credit-conflict", latencyMs: 9, status: "failed", error: "Hydra unavailable" }],
+      [label()],
+    );
+
+    expect(report.counts).toEqual({ attempted: 1, completed: 0, rejected: 0, failed: 1, unscored: 0 });
+    expect(report.verdictAccuracy).toBe(0);
   });
 });

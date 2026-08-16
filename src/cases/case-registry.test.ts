@@ -26,5 +26,6 @@ describe("judge case registry", () => {
     const serialized = JSON.stringify(cases);
     expect(serialized).not.toMatch(/gold_answer|answer_facts|expected_doc_ids/);
     expect(serialized).not.toMatch(/entityLogicalId|predicateFamily/);
+    expect(serialized).not.toMatch(/30%|20%|120 seconds|180-second|Software Engineer|66 team members/);
   });
 });

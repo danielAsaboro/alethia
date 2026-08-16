@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "labels": [
+    {
+      "caseId": "streamly-credit-conflict",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "percentage", "value": 30 }],
+      "expectedEvidenceDocumentIds": ["dsid_5f3a672da4974781a5577b0f3d4993e9", "dsid_8ffbd9fe82df457ca67d4fbc9ff1090c"],
+      "expectedRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"],
+      "forbiddenRelationships": [],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "resolved",
+      "requiredGraphProof": { "requiredRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "handshake-ttl-conflict",
+      "expectedVerdict": "DISPUTED",
+      "expectedFacts": [{ "kind": "identifier_set", "values": ["120 seconds", "180s"] }],
+      "expectedEvidenceDocumentIds": ["dsid_9f2e6aa7f6c14b1db1c6f922a1d4b4d7", "dsid_b8ab9778e36543159da49dba3ad9c76d"],
+      "expectedRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"],
+      "forbiddenRelationships": ["DECIDED_BY"],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "unresolved",
+      "requiredGraphProof": { "requiredRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "owner-is-not-owner",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "identifier_set", "values": ["FILE_OWNER", "OPPORTUNITY_OWNER"] }],
+      "expectedEvidenceDocumentIds": ["document.owner", "opportunity.owner"],
+      "expectedRelationships": ["MAPS_TO"],
+      "forbiddenRelationships": ["OWNS"],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["MAPS_TO"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "accepted"
+    },
+    {
+      "caseId": "david-taylor-collision",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "text", "value": "No. Keep them as two people." }],
+      "expectedEvidenceDocumentIds": ["source_object_0144b867b52d90b8cf4f0964", "source_object_353255b98d4cf6e3c0d6bfca"],
+      "expectedRelationships": ["CONSIDERS"],
+      "forbiddenRelationships": ["RESOLVES_TO"],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["CONSIDERS"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "rejected",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "favorite-lunch-boundary",
+      "expectedVerdict": "UNKNOWN",
+      "expectedFacts": [],
+      "expectedEvidenceDocumentIds": [],
+      "expectedRelationships": ["ASSERTS", "SUPPORTED_BY"],
+      "forbiddenRelationships": [],
+      "requiredCoverageState": "partial",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "charlie-davis-role",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "text", "value": "Software Engineer" }],
+      "expectedEvidenceDocumentIds": ["eid_01942cf0"],
+      "expectedRelationships": ["SUPPORTED_BY"],
+      "forbiddenRelationships": [],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "actiongenie-team",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "number", "value": 66, "unit": "team_members" }],
+      "expectedEvidenceDocumentIds": ["eid_036b54bf", "eid_03a183c9", "eid_08841d48", "eid_0ac476e4", "eid_13cb0e90", "eid_13fdff84", "eid_1e373ea2", "eid_21de287d", "eid_234b3360", "eid_2470307f", "eid_2589c967", "eid_31cb6db5", "eid_3bcf2a20", "eid_443fee06", "eid_45ba055e", "eid_47d43bc4", "eid_49aa3b00", "eid_4afd9484", "eid_4bcfb482", "eid_4cede092", "eid_4df5d4b7", "eid_5346d7a5", "eid_5890ce38", "eid_6cc1a0f6", "eid_6f8eba96", "eid_7b874c82", "eid_802e8eff", "eid_816aea15", "eid_8175da95", "eid_839bc5eb", "eid_84299dfb", "eid_8658e19c", "eid_8c5414f1", "eid_92294e45", "eid_96000199", "eid_9b023657", "eid_9bddb57c", "eid_a4fa6150", "eid_ae1d94d2", "eid_af89b40b", "eid_b23ad28c", "eid_b98a194c", "eid_bb22e59b", "eid_bed67c52", "eid_c834699e", "eid_c97ac4fe", "eid_ce2f3276", "eid_d1169926", "eid_d5888f27", "eid_d67508f1", "eid_d96fb219", "eid_de315467", "eid_df392037", "eid_e01a396c", "eid_e058484b", "eid_e0ff9aca", "eid_e96d2f38", "eid_eb1756e0", "eid_ec3b5d65", "eid_f1c8f4a5", "eid_f48dbe55", "eid_f73462f7", "eid_fa6ec727", "eid_fc0cd4cb", "eid_fc4619fa", "eid_fd8cecea"],
+      "expectedRelationships": ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"],
+      "forbiddenRelationships": [],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "charlie-davis-lagos",
+      "expectedVerdict": "NOT_FOUND",
+      "expectedFacts": [],
+      "expectedEvidenceDocumentIds": ["eid_01942cf0"],
+      "expectedRelationships": ["SUPPORTED_BY"],
+      "forbiddenRelationships": [],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "not_applicable"
+    }
+  ]
+}

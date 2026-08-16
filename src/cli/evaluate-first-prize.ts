@@ -1,24 +1,31 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { scoreFirstPrizeResults, runFirstPrizeCases } from "@/evaluation/run-first-prize-evaluation";
+import { parseEvaluationLabelsV2 } from "@/evaluation/contract";
+import {
+  freezeFirstPrizeResults,
+  scoreFirstPrizeResultsV2,
+  runFirstPrizeCases,
+  type FrozenCaseResult,
+} from "@/evaluation/run-first-prize-evaluation";
 import { HydraRepository } from "@/hydra/client";
 import { mapIngestionToGraph } from "@/hydra/write-bundle";
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
 
-interface Args { herbInput: string; output: string }
-const usage = "Usage: npm run evaluate:first-prize -- --herb-input <path> --output <json-path>";
+interface Args { herbInput: string; labels: string; output: string }
+const usage = "Usage: npm run evaluate:first-prize -- --herb-input <path> --labels <labels.json> --output <json-path>";
 export function parseEvaluateFirstPrizeArgs(args: string[]): Args {
   const values: Partial<Args> = {};
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index], value = args[index + 1];
-    if (!value || (flag !== "--herb-input" && flag !== "--output")) throw new TypeError(usage);
+    if (!value || !["--herb-input", "--labels", "--output"].includes(flag ?? "")) throw new TypeError(usage);
     if (flag === "--herb-input") values.herbInput = value;
+    if (flag === "--labels") values.labels = value;
     if (flag === "--output") values.output = value;
   }
-  if (!values.herbInput || !values.output) throw new TypeError(usage);
+  if (!values.herbInput || !values.labels || !values.output) throw new TypeError(usage);
   return values as Args;
 }
 
@@ -29,12 +36,16 @@ async function main() {
   const hydra = repository();
   try {
     const runtimeResults = await runFirstPrizeCases(hydra);
+    const frozen = freezeFirstPrizeResults(runtimeResults);
+    const verifiedRuntimeResults = JSON.parse(frozen.serialized) as FrozenCaseResult[];
+    const labelBytes = await readFile(path.resolve(args.labels), "utf8");
+    const labels = parseEvaluationLabelsV2(JSON.parse(labelBytes));
     const ingestion = await runIngestion(new HerbAdapter(), args.herbInput);
     const graph = mapIngestionToGraph(ingestion);
     const accepted = ingestion.resolution.decisions.filter((decision) => decision.status === "accepted");
     const sameName = ingestion.resolution.decisions.filter((decision) => decision.signals.some((signal) => signal.kind === "name_similarity"));
     const hardNegative = ingestion.resolution.decisions.filter((decision) => decision.constraints.includes("employee_id_conflict"));
-    const score = scoreFirstPrizeResults(runtimeResults, {
+    const identityLane = {
       records: ingestion.records.length,
       acceptedExactLinks: accepted.length,
       sameNameCandidates: sameName.length,
@@ -42,15 +53,24 @@ async function main() {
       sourceTruceFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
       graphNodes: graph.nodes.length,
       graphEdges: graph.edges.length,
-    });
-    const artifact = { schemaVersion: 1, generatedAt: new Date().toISOString(), separation: "Runtime workspaces freeze before evaluation labels are applied.", runtimeResults, score };
+    };
+    const score = scoreFirstPrizeResultsV2(verifiedRuntimeResults, labels.labels);
+    const artifact = {
+      schemaVersion: 2,
+      generatedAt: new Date().toISOString(),
+      separation: "Runtime workspaces and their digest freeze before the label file is opened.",
+      runtimeSha256: frozen.sha256,
+      runtimeResults: verifiedRuntimeResults,
+      score,
+      identityLane,
+    };
     const output = path.resolve(args.output);
     const markdown = output.replace(/\.json$/i, ".md");
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    await writeFile(markdown, `# SourceTruce first-prize evaluation\n\n- Attempted: ${score.attempted}\n- Completed: ${score.completed}\n- Failed: ${score.failed}\n- Case accuracy: ${(score.caseAccuracy * 100).toFixed(1)}%\n- Live Hydra latency p50 / p95: ${score.p50LatencyMs} ms / ${score.p95LatencyMs} ms\n- Identity hard negatives blocked: ${score.lanes.identity.hardNegativePairs}\n- Identity false merges on known hard negatives: ${score.lanes.identity.sourceTruceFalseMerges}\n- Graph: ${score.lanes.identity.graphNodes} nodes / ${score.lanes.identity.graphEdges} edges\n\nLimit: this focused evaluation contains one fully adjudicated ERB conflict case, not a score over all 20 conflict questions. All 20 extraction attempts are reported separately.\n`, "utf8");
-    console.log(JSON.stringify({ output, markdown, attempted: score.attempted, completed: score.completed, caseAccuracy: score.caseAccuracy }));
-    if (score.failed > 0) process.exitCode = 1;
+    await writeFile(markdown, `# SourceTruce generic judge-case evaluation\n\n- Runtime SHA-256: \`${frozen.sha256}\`\n- Attempted: ${score.counts.attempted}\n- Completed: ${score.counts.completed}\n- Rejected: ${score.counts.rejected}\n- Failed: ${score.counts.failed}\n- Unscored: ${score.counts.unscored}\n- Answer correctness / completeness: ${(score.answerCorrectness * 100).toFixed(1)}% / ${(score.answerCompleteness * 100).toFixed(1)}%\n- Verdict accuracy: ${(score.verdictAccuracy * 100).toFixed(1)}%\n- Evidence precision / recall / F1: ${score.evidence.precision ?? "undefined"} / ${score.evidence.recall ?? "undefined"} / ${score.evidence.f1 ?? "undefined"}\n- Live Hydra latency p50 / p95: ${score.latency.p50Ms} ms / ${score.latency.p95Ms} ms\n- Identity hard negatives observed: ${identityLane.hardNegativePairs}\n- Identity false merges on known hard constraints: ${identityLane.sourceTruceFalseMerges}\n- Graph: ${identityLane.graphNodes} nodes / ${identityLane.graphEdges} edges\n\nThis is a labeled development-case evaluation. It is not an untouched holdout result.\n`, "utf8");
+    console.log(JSON.stringify({ output, markdown, attempted: score.counts.attempted, completed: score.counts.completed, answerCorrectness: score.answerCorrectness }));
+    if (score.counts.failed > 0 || score.counts.rejected > 0 || score.counts.unscored > 0) process.exitCode = 1;
   } finally { await hydra.close(); }
 }
 

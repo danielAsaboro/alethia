@@ -1,5 +1,14 @@
+import { createHash } from "node:crypto";
+
 import { listJudgeCases } from "@/cases/case-registry";
 import { runJudgeCase, type CaseRepository, type CaseWorkspace } from "@/application/run-case";
+import type {
+  CompletedEvaluationAttemptV2,
+  EvaluationAttemptV2,
+  EvaluationFact,
+  EvaluationLabelV2,
+} from "./contract";
+import { scoreAttemptsV2 } from "./metrics";
 
 export interface FrozenCaseResult {
   caseId: string;
@@ -7,16 +16,6 @@ export interface FrozenCaseResult {
   status: "completed" | "failed";
   workspace?: CaseWorkspace;
   error?: string;
-}
-
-export interface IdentityLaneStats {
-  records: number;
-  acceptedExactLinks: number;
-  sameNameCandidates: number;
-  hardNegativePairs: number;
-  sourceTruceFalseMerges: number;
-  graphNodes: number;
-  graphEdges: number;
 }
 
 export async function runFirstPrizeCases(repository: CaseRepository): Promise<FrozenCaseResult[]> {
@@ -43,62 +42,125 @@ export async function runFirstPrizeCases(repository: CaseRepository): Promise<Fr
   return results;
 }
 
-const scoringLabels = {
-  "streamly-credit-conflict": { verdict: "SUPPORTED", answerIncludes: "30%" },
-  "handshake-ttl-conflict": { verdict: "SUPPORTED", answerIncludes: "120" },
-  "owner-is-not-owner": { verdict: "SUPPORTED", answerIncludes: "distinct" },
-  "david-taylor-collision": { verdict: "SUPPORTED", answerIncludes: "two people" },
-  "favorite-lunch-boundary": { verdict: "UNKNOWN", answerIncludes: "Not enough evidence" },
-  "charlie-davis-role": { verdict: "SUPPORTED", answerIncludes: "Software Engineer" },
-  "actiongenie-team": { verdict: "SUPPORTED", answerIncludes: "66 team members" },
-  "charlie-davis-lagos": { verdict: "NOT_FOUND", answerIncludes: "No Lagos location" },
-} as const;
-
-function percentile(values: number[], quantile: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.max(0, Math.ceil(sorted.length * quantile) - 1)];
+function evidenceDocumentId(item: CaseWorkspace["evidence"][number]): string {
+  if (/^source_object_[a-f0-9]+$/i.test(item.quote.trim())) return item.quote.trim();
+  const segments = item.source.split("·");
+  return (segments.at(-1) ?? item.source).trim();
 }
 
-export function scoreFirstPrizeResults(results: FrozenCaseResult[], identity: IdentityLaneStats) {
-  const completed = results.filter((result) => result.status === "completed" && result.workspace);
-  const scored = completed.map((result) => {
-    const label = scoringLabels[result.caseId as keyof typeof scoringLabels];
-    const correct = Boolean(label && result.workspace?.verdict === label.verdict && result.workspace.answer.includes(label.answerIncludes));
-    return { caseId: result.caseId, correct, verdict: result.workspace!.verdict, evidenceItems: result.workspace!.evidence.length };
-  });
-  const alignment = completed.find((result) => result.caseId === "owner-is-not-owner")?.workspace;
-  const conflict = completed.find((result) => result.caseId === "streamly-credit-conflict")?.workspace;
-  const boundary = completed.find((result) => result.caseId === "favorite-lunch-boundary")?.workspace;
-  return {
-    attempted: results.length,
-    completed: completed.length,
-    failed: results.length - completed.length,
-    caseAccuracy: scored.length === 0 ? 0 : scored.filter((item) => item.correct).length / scored.length,
-    p50LatencyMs: percentile(completed.map((item) => item.latencyMs), 0.5),
-    p95LatencyMs: percentile(completed.map((item) => item.latencyMs), 0.95),
-    cases: scored,
-    lanes: {
-      conflict: {
-        completed: Boolean(conflict),
-        competingEvidenceItems: conflict?.evidence.length ?? 0,
-        resolvedByPolicy: conflict?.decision.status === "resolved",
-        noPolicyAblation: conflict?.ablation.result ?? "unavailable",
-      },
-      alignment: {
-        completed: Boolean(alignment),
-        contextualMappingsCompared: alignment?.evidence.length ?? 0,
-        naiveFieldNameFailure: alignment?.ablation.result ?? "unavailable",
-      },
-      identity: {
-        ...identity,
-        naiveFuzzyFalseMerges: identity.hardNegativePairs,
-      },
-      coverage: {
-        completed: Boolean(boundary),
-        verdict: boundary?.verdict ?? "unavailable",
-        noCoverageGateFailure: boundary?.ablation.result ?? "unavailable",
-      },
-    },
+function numericFact(answer: string): EvaluationFact | undefined {
+  const percentage = answer.trim().match(/^(-?\d+(?:\.\d+)?)%$/);
+  if (percentage) return { kind: "percentage", value: Number(percentage[1]) };
+
+  const duration = answer.trim().match(/^(-?\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?)$/i);
+  if (duration) {
+    const rawUnit = duration[2].toLocaleLowerCase();
+    const unit = rawUnit.startsWith("ms") || rawUnit.startsWith("millisecond")
+      ? "milliseconds"
+      : rawUnit === "s" || rawUnit.startsWith("sec")
+        ? "seconds"
+        : rawUnit.startsWith("min")
+          ? "minutes"
+          : "hours";
+    return { kind: "duration", value: Number(duration[1]), unit };
+  }
+  return undefined;
+}
+
+function structuredFacts(workspace: CaseWorkspace): EvaluationFact[] {
+  if (workspace.verdict === "UNKNOWN" || workspace.verdict === "NOT_FOUND") return [];
+
+  if (workspace.case.kind === "conflict" && workspace.verdict === "DISPUTED") {
+    return [{
+      kind: "identifier_set",
+      values: workspace.evidence
+        .map((item) => item.value)
+        .filter((value): value is string => typeof value === "string"),
+    }];
+  }
+
+  if (workspace.case.kind === "multi_hop") {
+    const count = workspace.answer.match(/^(\d+)\s+team members:/i);
+    return count ? [{ kind: "number", value: Number(count[1]), unit: "team_members" }] : [];
+  }
+
+  if (workspace.case.kind === "alignment") {
+    const ontologyTerms = workspace.answer.match(/\b[A-Z][A-Z_]{2,}\b/g) ?? [];
+    return [{ kind: "identifier_set", values: ontologyTerms }];
+  }
+
+  const numeric = numericFact(workspace.answer);
+  return [numeric ?? { kind: "text", value: workspace.answer }];
+}
+
+export function caseResultToAttempt(result: FrozenCaseResult): EvaluationAttemptV2 {
+  if (result.status === "failed" || !result.workspace) {
+    return {
+      schemaVersion: 2,
+      caseId: result.caseId,
+      status: "failed",
+      latencyMs: result.latencyMs,
+      error: result.error ?? "Case failed without an error message",
+    };
+  }
+
+  const workspace = result.workspace;
+  const identityState = workspace.case.kind === "identity"
+    ? (workspace.decision.status === "accepted" || workspace.decision.status === "rejected" || workspace.decision.status === "pending"
+      ? workspace.decision.status
+      : "pending")
+    : "not_applicable";
+  const alignmentState = workspace.case.kind === "alignment"
+    ? (workspace.decision.status === "accepted" || workspace.decision.status === "rejected" || workspace.decision.status === "pending"
+      ? workspace.decision.status
+      : "pending")
+    : "not_applicable";
+  const conflictState = workspace.case.kind !== "conflict"
+    ? "not_applicable"
+    : workspace.decision.status === "resolved"
+      ? "resolved"
+      : workspace.decision.status === "unresolved"
+        ? "unresolved"
+        : "detected";
+
+  const attempt: CompletedEvaluationAttemptV2 = {
+    schemaVersion: 2,
+    caseId: result.caseId,
+    status: "completed",
+    latencyMs: result.latencyMs,
+    verdict: workspace.verdict,
+    facts: structuredFacts(workspace),
+    evidenceDocumentIds: [...new Set(workspace.evidence.map(evidenceDocumentId))],
+    relationships: [...workspace.graphProof.relationshipTypes],
+    coverageState: workspace.coverage.sufficient ? "complete" : "partial",
+    conflictState,
+    identityState,
+    alignmentState,
+    grounding: { accepted: workspace.evidence.length, rejected: 0 },
+    graphProofs: [{
+      queryId: workspace.graphProof.queryId,
+      live: true,
+      relationshipTypes: [...workspace.graphProof.relationshipTypes],
+      pathLength: workspace.graphProof.pathLength,
+    }],
   };
+  return attempt;
+}
+
+export function freezeFirstPrizeResults(results: FrozenCaseResult[]): {
+  serialized: string;
+  sha256: string;
+} {
+  const serialized = JSON.stringify(results);
+  return {
+    serialized,
+    sha256: createHash("sha256").update(serialized).digest("hex"),
+  };
+}
+
+export function scoreFirstPrizeResultsV2(
+  results: FrozenCaseResult[],
+  labels: EvaluationLabelV2[],
+) {
+  return scoreAttemptsV2(results.map(caseResultToAttempt), labels);
 }
