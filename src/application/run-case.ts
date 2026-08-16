@@ -1,4 +1,5 @@
 import { buildDossier } from "@/application/build-dossier";
+import { validateCaseProof } from "@/application/validate-case-proof";
 import { getJudgeCase, type JudgeCase } from "@/cases/case-registry";
 import { evaluateCoverage } from "@/coverage/evaluate-coverage";
 import type {
@@ -13,16 +14,18 @@ import type {
 import type { Claim } from "@/domain/ontology";
 
 export interface GraphProofSummary {
-  operation: "algo.SPpaths";
+  operation: "algo.SPpaths" | "algo.SPpaths.sequence";
   consistency: "strong";
   queryId: string;
+  queryIds: string[];
   readEpoch: number | null;
   bookmark: string | null;
   latencyMs: number;
-  roundTrips: 1;
+  roundTrips: number;
   pathLength: number;
   path: string;
   relationshipTypes: string[];
+  nodes: Array<{ logicalId: string | null; labels: string[] }>;
 }
 
 export interface CaseWorkspace {
@@ -41,7 +44,7 @@ export interface CaseWorkspace {
 export type CaseRepository = Pick<HydraRepository,
   "findObservationEvidence" | "findConflictDecision" | "findAlignmentDecisions" |
   "findIdentityDecision" | "entityExists" | "findCoverageSlices" |
-  "findClaimEvidence" | "findTeamMemberEvidence" | "findNativePaths"
+  "findClaimEvidence" | "findTeamMemberEvidence" | "findNativePaths" | "findExactPath"
 >;
 
 const ids = {
@@ -54,6 +57,7 @@ const ids = {
   fileOwnerTerm: "source_term_390378ec7210fb25b3662ba0",
   opportunityOwnerTerm: "source_term_0354c371ffe861934bed28e6",
   identityDecision: "identity_candidate_decision_cfbaaae570ab4b5c306e83af",
+  acceptedIdentityDecision: "identity_candidate_decision_aba2cf1321e05346466dd5d3",
   knowledgeEntity: "entity_90ad19476a96ae677e3c9143",
   knowledgeSource: "source_object_fa63884437348a11c9312fb9",
   actionGenieEntity: "entity_6b6402fb266f1c3207c7963d",
@@ -157,6 +161,7 @@ function graphProofSummary(proof: HydraPathProof | undefined): GraphProofSummary
     operation: proof.operation,
     consistency: proof.consistency,
     queryId: proof.queryId,
+    queryIds: proof.queryIds ?? [proof.queryId],
     readEpoch: proof.readEpoch,
     bookmark: proof.bookmark,
     latencyMs: proof.latencyMs,
@@ -164,6 +169,7 @@ function graphProofSummary(proof: HydraPathProof | undefined): GraphProofSummary
     pathLength: proof.pathLength,
     path,
     relationshipTypes: proof.relationships.map((relationship) => relationship.type),
+    nodes: proof.nodes.map((node) => ({ logicalId: node.logicalId, labels: [...node.labels] })),
   };
 }
 
@@ -176,6 +182,35 @@ async function requireGraphProof(
     throw new Error("Required HydraDB native path proof is missing or ambiguous");
   }
   return graphProofSummary(paths[0]);
+}
+
+async function requireExactGraphProof(
+  repository: CaseRepository,
+  nodeLogicalIds: string[],
+  relationshipTypes: Parameters<CaseRepository["findExactPath"]>[0]["relationshipTypes"],
+): Promise<GraphProofSummary> {
+  const paths = await repository.findExactPath({ nodeLogicalIds, relationshipTypes });
+  if (paths.length !== 1) {
+    throw new Error("Required HydraDB exact path proof is missing or ambiguous");
+  }
+  return graphProofSummary(paths[0]);
+}
+
+function validatedWorkspace(
+  workspace: CaseWorkspace,
+  input: {
+    sourceLogicalId: string;
+    targetLogicalId: string;
+    sourceLabel: string;
+    targetLabel: string;
+    relationshipTypes: string[];
+  },
+): CaseWorkspace {
+  return validateCaseProof(workspace, {
+    ...input,
+    minimumPathLength: input.relationshipTypes.length,
+    maximumPathLength: input.relationshipTypes.length,
+  });
 }
 
 function literalClaimValue(evidence: GraphClaimEvidence): string | undefined {
@@ -227,26 +262,30 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     if (decision.winningClaimId) {
       const winner = conflictObservations.find((item) => item.claimLogicalId === decision.winningClaimId);
       if (!winner) throw new Error("Winning claim evidence is missing from HydraDB");
-      const graphProof = await requireGraphProof(repository, {
-        sourceLogicalId: winner.claimLogicalId,
-        targetLogicalId: winner.sourceLogicalId,
-        relationshipTypes: ["HAS_OBSERVATION", "SUPPORTED_BY"],
-        maxLength: 2,
-        pathCount: 1,
-      });
-      return conflictWorkspace(judgeCase, conflictObservations, decision, winner, graphProof);
+      const relationshipTypes = ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"] as const;
+      const graphProof = await requireExactGraphProof(
+        repository,
+        [pointers.entityId, winner.claimLogicalId, winner.observationLogicalId, winner.sourceLogicalId],
+        [...relationshipTypes],
+      );
+      return validatedWorkspace(
+        conflictWorkspace(judgeCase, conflictObservations, decision, winner, graphProof),
+        { sourceLogicalId: pointers.entityId, targetLogicalId: winner.sourceLogicalId, sourceLabel: "Entity", targetLabel: "SourceObject", relationshipTypes: [...relationshipTypes] },
+      );
     }
     if (decision.resolution === "unresolved") {
       const target = conflictObservations[0];
       if (!target) throw new Error("Conflict case is not ready in HydraDB");
-      const graphProof = await requireGraphProof(repository, {
-        sourceLogicalId: target.claimLogicalId,
-        targetLogicalId: target.sourceLogicalId,
-        relationshipTypes: ["HAS_OBSERVATION", "SUPPORTED_BY"],
-        maxLength: 2,
-        pathCount: 1,
-      });
-      return disputedWorkspace(judgeCase, conflictObservations, decision, graphProof);
+      const relationshipTypes = ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"] as const;
+      const graphProof = await requireExactGraphProof(
+        repository,
+        [pointers.entityId, target.claimLogicalId, target.observationLogicalId, target.sourceLogicalId],
+        [...relationshipTypes],
+      );
+      return validatedWorkspace(
+        disputedWorkspace(judgeCase, conflictObservations, decision, graphProof),
+        { sourceLogicalId: pointers.entityId, targetLogicalId: target.sourceLogicalId, sourceLabel: "Entity", targetLabel: "SourceObject", relationshipTypes: [...relationshipTypes] },
+      );
     }
     throw new Error("Conflict case is not ready in HydraDB");
   }
@@ -257,6 +296,44 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       repository.findAlignmentDecisions(ids.opportunityOwnerTerm),
     ]);
     const file = acceptedMapping(fileRows);
+    if (judgeCase.behavior === "alignment_reject") {
+      const rejected = fileRows.find(
+        (row) => row.status === "rejected" && row.ontologyTermName === "OWNS",
+      );
+      if (!rejected || rejected.reason !== "domain_range_mismatch") {
+        throw new Error("Required rejected alignment decision is missing from HydraDB");
+      }
+      const relationshipTypes = ["REJECTED_MAPPING"] as const;
+      const graphProof = await requireGraphProof(repository, {
+        sourceLogicalId: rejected.decisionId,
+        targetLogicalId: rejected.ontologyTermId,
+        relationshipTypes: [...relationshipTypes],
+        maxLength: 1,
+        pathCount: 1,
+      });
+      return validatedWorkspace({
+        case: judgeCase,
+        verdict: "SUPPORTED",
+        answer: `No. document.owner does not map to ${rejected.ontologyTermName}; its accepted relation is ${file.ontologyTermName}.`,
+        evidence: [{
+          source: "Google Drive · document.owner",
+          quote: `Rejected ${rejected.ontologyTermName}: domain/range mismatch for a document owner.`,
+          value: rejected.ontologyTermName,
+        }],
+        decision: { status: "rejected", reason: "The generic Entity→Entity relation violates the audited Document→Person mapping constraint.", policy: "alignment-registry-v1" },
+        coverage: { sufficient: true, detail: "The canonical document.owner observation and both alignment candidates were examined." },
+        counterfactual: "A versioned rule proving compatible generic domains and ranges would reopen this candidate.",
+        traversal: "AlignmentDecision → REJECTED_MAPPING → OntologyTerm",
+        ablation: { label: "Surface-only alignment", result: "Would accept generic OWNS and erase the document-specific FILE_OWNER relation." },
+        graphProof,
+      }, {
+        sourceLogicalId: rejected.decisionId,
+        targetLogicalId: rejected.ontologyTermId,
+        sourceLabel: "AlignmentDecision",
+        targetLabel: "OntologyTerm",
+        relationshipTypes: [...relationshipTypes],
+      });
+    }
     const opportunity = acceptedMapping(opportunityRows);
     if (
       file.ontologyTermName === opportunity.ontologyTermName ||
@@ -272,7 +349,7 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       maxLength: 1,
       pathCount: 1,
     });
-    return {
+    return validatedWorkspace({
       case: judgeCase,
       verdict: "SUPPORTED",
       answer: `No. ${file.ontologyTermName} and ${opportunity.ontologyTermName} are distinct ontology relations.`,
@@ -286,11 +363,47 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       traversal: "SourceObject → OBSERVED_AS → SourceSchemaTerm → MAPS_TO → OntologyTerm",
       ablation: { label: "Naive field-name mapping", result: "Both become OWNS, erasing file vs opportunity semantics." },
       graphProof,
-    };
+    }, {
+      sourceLogicalId: ids.fileOwnerTerm,
+      targetLogicalId: file.ontologyTermId,
+      sourceLabel: "SourceSchemaTerm",
+      targetLabel: "OntologyTerm",
+      relationshipTypes: ["MAPS_TO"],
+    });
   }
 
   if (judgeCase.kind === "identity") {
-    const decision = await repository.findIdentityDecision(ids.identityDecision);
+    const decisionId = judgeCase.behavior === "identity_accept"
+      ? ids.acceptedIdentityDecision
+      : ids.identityDecision;
+    const decision = await repository.findIdentityDecision(decisionId);
+    if (judgeCase.behavior === "identity_accept") {
+      if (
+        !decision ||
+        decision.status !== "accepted" ||
+        decision.sourceObjectIds.length !== 2 ||
+        !decision.signalKinds.includes("external_id_exact") ||
+        !decision.signalKinds.includes("name_similarity") ||
+        decision.constraintKinds.length !== 0
+      ) {
+        throw new Error("Identity acceptance case is not ready in HydraDB");
+      }
+      const targetSource = decision.sourceObjectIds[0]!;
+      const graphProof = await requireGraphProof(repository, {
+        sourceLogicalId: decisionId,
+        targetLogicalId: targetSource,
+        relationshipTypes: ["CONSIDERS"],
+        maxLength: 1,
+        pathCount: 1,
+      });
+      return validatedWorkspace(identityAcceptedWorkspace(judgeCase, decision, graphProof), {
+        sourceLogicalId: decisionId,
+        targetLogicalId: targetSource,
+        sourceLabel: "ResolutionDecision",
+        targetLabel: "SourceObject",
+        relationshipTypes: ["CONSIDERS"],
+      });
+    }
     if (
       !decision ||
       decision.status !== "rejected" ||
@@ -309,7 +422,13 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       maxLength: 1,
       pathCount: 1,
     });
-    return identityWorkspace(judgeCase, decision, graphProof);
+    return validatedWorkspace(identityWorkspace(judgeCase, decision, graphProof), {
+      sourceLogicalId: ids.identityDecision,
+      targetLogicalId: targetSource,
+      sourceLabel: "ResolutionDecision",
+      targetLabel: "SourceObject",
+      relationshipTypes: ["CONSIDERS"],
+    });
   }
 
   if (judgeCase.kind === "simple_lookup") {
@@ -337,7 +456,7 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       pathCount: 1,
     });
     const answer = roleValues[0];
-    return {
+    return validatedWorkspace({
       case: judgeCase,
       verdict: "SUPPORTED",
       answer,
@@ -361,7 +480,13 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
         result: "A name-only lookup could attach another Charlie Davis record's role.",
       },
       graphProof,
-    };
+    }, {
+      sourceLogicalId: targetEvidence.claimLogicalId,
+      targetLogicalId: targetEvidence.sourceLogicalId,
+      sourceLabel: "Claim",
+      targetLabel: "SourceObject",
+      relationshipTypes: ["SUPPORTED_BY"],
+    });
   }
 
   if (judgeCase.kind === "multi_hop") {
@@ -407,7 +532,7 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       maxLength: 3,
       pathCount: 1,
     });
-    return {
+    return validatedWorkspace({
       case: judgeCase,
       verdict: "SUPPORTED",
       answer: `${members.length} team members: ${members.map((member) => member.displayName).join(", ")}.`,
@@ -431,7 +556,13 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
         result: "Client-side joins must fan out across product, employee, claim, and source records.",
       },
       graphProof,
-    };
+    }, {
+      sourceLogicalId: ids.actionGenieEntity,
+      targetLogicalId: targetSource,
+      sourceLabel: "Entity",
+      targetLabel: "SourceObject",
+      relationshipTypes: ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"],
+    });
   }
 
   const [entityExists, slices, locationEvidence] = await Promise.all([
@@ -482,7 +613,7 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
   });
   if (judgeCase.id === "charlie-davis-lagos") {
     const isFound = dossier.verdict === "SUPPORTED";
-    return {
+    return validatedWorkspace({
       case: judgeCase,
       verdict: dossier.verdict,
       answer: isFound
@@ -526,9 +657,15 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
         result: "Without a completed location slice, the same missing Lagos claim must be UNKNOWN rather than NOT_FOUND.",
       },
       graphProof,
-    };
+    }, {
+      sourceLogicalId: pathEvidence?.claimLogicalId ?? ids.knowledgeEntity,
+      targetLogicalId: pathEvidence?.sourceLogicalId ?? ids.knowledgeSource,
+      sourceLabel: pathEvidence ? "Claim" : "Entity",
+      targetLabel: "SourceObject",
+      relationshipTypes: pathEvidence ? ["SUPPORTED_BY"] : ["ASSERTS", "SUPPORTED_BY"],
+    });
   }
-  return {
+  return validatedWorkspace({
     case: judgeCase,
     verdict: dossier.verdict,
     answer: "Not enough evidence to answer.",
@@ -539,7 +676,13 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
     traversal: "IngestionRun → COVERS → CoverageSlice (required family missing)",
     ablation: { label: "No coverage gate", result: "Would incorrectly return NOT_FOUND as if the corpus had been exhaustively checked." },
     graphProof,
-  };
+  }, {
+    sourceLogicalId: pathEvidence?.claimLogicalId ?? ids.knowledgeEntity,
+    targetLogicalId: pathEvidence?.sourceLogicalId ?? ids.knowledgeSource,
+    sourceLabel: pathEvidence ? "Claim" : "Entity",
+    targetLabel: "SourceObject",
+    relationshipTypes: pathEvidence ? ["SUPPORTED_BY"] : ["ASSERTS", "SUPPORTED_BY"],
+  });
 }
 
 function conflictWorkspace(
@@ -600,6 +743,32 @@ function identityWorkspace(
     counterfactual: "A verified account link plus removal of the employee-ID conflict would permit a merge.",
     traversal: "ResolutionDecision → SUPPORTED_BY → name_similarity; ResolutionDecision → BLOCKED_BY → employee_id_conflict",
     ablation: { label: "Naive fuzzy-name resolver", result: "Merges 1,645 same-name pairs; 1,627 violate known employee-ID constraints." },
+    graphProof,
+  };
+}
+
+function identityAcceptedWorkspace(
+  caseValue: JudgeCase,
+  decision: GraphIdentityDecision,
+  graphProof: GraphProofSummary,
+): CaseWorkspace {
+  return {
+    case: caseValue,
+    verdict: "SUPPORTED",
+    answer: "Yes. The employee and team-structure records resolve to Emma Taylor.",
+    evidence: decision.sourceObjectIds.map((source, index) => ({
+      source: `HERB source ${index + 1}`,
+      quote: source,
+    })),
+    decision: {
+      status: decision.status,
+      reason: "The records share an exact employee ID and normalized name with no hard identity conflict.",
+      policy: "resolver-v2",
+    },
+    coverage: { sufficient: true, detail: "Both canonical HERB records and their verified identifiers were examined." },
+    counterfactual: "A conflicting verified employee ID would block this merge.",
+    traversal: "ResolutionDecision → SUPPORTED_BY → external_id_exact; ResolutionDecision → CONSIDERS → SourceObject",
+    ablation: { label: "No exact-ID link", result: "The pair would remain pending instead of being merged from name similarity alone." },
     graphProof,
   };
 }

@@ -10,6 +10,7 @@ const graphProof = {
   operation: "algo.SPpaths" as const,
   consistency: "strong" as const,
   queryId: "sourcetruce-read-route-test",
+  queryIds: ["sourcetruce-read-route-test"],
   readEpoch: 1236,
   bookmark: "sgk:test:1236",
   latencyMs: 2.5,
@@ -17,6 +18,10 @@ const graphProof = {
   pathLength: 1,
   path: "claim → source",
   relationshipTypes: ["SUPPORTED_BY"],
+  nodes: [
+    { logicalId: "claim", labels: ["Claim"] },
+    { logicalId: "source", labels: ["SourceObject"] },
+  ],
 };
 
 describe("POST /api/cases/:caseId/run", () => {
@@ -36,6 +41,7 @@ describe("POST /api/cases/:caseId/run", () => {
       case: {
         id: "streamly-credit-conflict",
         kind: "conflict",
+        behavior: "resolved_conflict",
         title: "Resolve a conflict",
         question: "Which value controls?",
         summary: "Two sources disagree.",

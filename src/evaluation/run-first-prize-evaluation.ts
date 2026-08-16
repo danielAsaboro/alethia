@@ -142,6 +142,8 @@ export function caseResultToAttempt(result: FrozenCaseResult): EvaluationAttempt
       live: true,
       relationshipTypes: [...workspace.graphProof.relationshipTypes],
       pathLength: workspace.graphProof.pathLength,
+      sourceLabel: workspace.graphProof.nodes[0]?.labels[0],
+      targetLabel: workspace.graphProof.nodes.at(-1)?.labels[0],
     }],
   };
   return attempt;

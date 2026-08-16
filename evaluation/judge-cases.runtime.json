@@ -6,6 +6,7 @@
       "question": "What percentage of Streamly AI's burst credits is actually reserved for priority routes?",
       "category": "conflict",
       "execution": {
+        "behavior": "resolved_conflict",
         "title": "Resolve a conflict",
         "summary": "Compare contradictory infrastructure records and retain the losing claim.",
         "dataset": "Enterprise RAG Bench",
@@ -18,8 +19,9 @@
       "question": "Default TTL for the cross-account GPU warm-pool handoff handshake token?",
       "category": "conflict",
       "execution": {
-        "title": "Adjudicate incomplete lifecycle evidence",
-        "summary": "Compare contradictory operational guidance without inferring missing lifecycle metadata.",
+        "behavior": "superseded",
+        "title": "Prove a supersession",
+        "summary": "Use explicit current-versus-prior lifecycle evidence while retaining the stale claim.",
         "dataset": "Enterprise RAG Bench",
         "version": "qst_0421-v2",
         "sourceSystems": ["confluence"]
@@ -30,6 +32,7 @@
       "question": "Do I need to set enable_tool_signal for tool-signal in the Responses v9 OpenAI-compat streaming bridge?",
       "category": "conflict",
       "execution": {
+        "behavior": "unresolved_conflict",
         "title": "Refuse an unsupported winner",
         "summary": "Retain two equally applied contradictory records when no authority rule distinguishes them.",
         "dataset": "Enterprise RAG Bench",
@@ -42,6 +45,7 @@
       "question": "Does Google Drive owner mean the same relationship as HubSpot opportunity owner?",
       "category": "ontology_alignment",
       "execution": {
+        "behavior": "alignment_accept",
         "title": "Disambiguate owner semantics",
         "summary": "Compare identical field surfaces using source context and domain constraints.",
         "dataset": "Enterprise RAG Bench",
@@ -50,12 +54,39 @@
       }
     },
     {
+      "id": "document-owner-rejects-generic-owns",
+      "question": "Should Google Drive document.owner map to the generic OWNS ontology relationship?",
+      "category": "ontology_alignment",
+      "execution": {
+        "behavior": "alignment_reject",
+        "title": "Reject an incompatible alignment",
+        "summary": "Inspect the rejected generic mapping and its domain/range constraint evidence.",
+        "dataset": "Enterprise RAG Bench",
+        "version": "alignment-registry-v1",
+        "sourceSystems": ["google_drive"]
+      }
+    },
+    {
       "id": "david-taylor-collision",
       "question": "Should these two David Taylor records be merged into one employee?",
       "category": "entity_resolution",
       "execution": {
+        "behavior": "identity_reject",
         "title": "Resolve an identity collision",
         "summary": "Evaluate a same-name pair with verified identity constraints.",
+        "dataset": "Salesforce HERB",
+        "version": "resolver-v2",
+        "sourceSystems": ["herb"]
+      }
+    },
+    {
+      "id": "emma-taylor-exact-link",
+      "question": "Should the Emma Taylor employee and team-structure records resolve to one person?",
+      "category": "entity_resolution",
+      "execution": {
+        "behavior": "identity_accept",
+        "title": "Accept a verified identity link",
+        "summary": "Resolve two canonical records using an exact employee identifier plus name agreement.",
         "dataset": "Salesforce HERB",
         "version": "resolver-v2",
         "sourceSystems": ["herb"]
@@ -66,6 +97,7 @@
       "question": "What is this employee's favorite lunch?",
       "category": "knowledge_boundary",
       "execution": {
+        "behavior": "unknown",
         "title": "Admit incomplete coverage",
         "summary": "Distinguish missing evidence from a proven absence.",
         "dataset": "Salesforce HERB",
@@ -78,6 +110,7 @@
       "question": "What is Charlie Davis's role?",
       "category": "simple_lookup",
       "execution": {
+        "behavior": "simple_lookup",
         "title": "Retrieve a canonical fact",
         "summary": "Resolve an employee and retrieve a grounded role claim.",
         "dataset": "Salesforce HERB",
@@ -90,6 +123,7 @@
       "question": "Who works on the ActionGenie product team?",
       "category": "multi_hop",
       "execution": {
+        "behavior": "multi_hop",
         "title": "Traverse a product team",
         "summary": "Traverse product membership to canonical employee claims and evidence.",
         "dataset": "Salesforce HERB",
@@ -102,6 +136,7 @@
       "question": "Is Charlie Davis located in Lagos?",
       "category": "knowledge_boundary",
       "execution": {
+        "behavior": "not_found",
         "title": "Prove a fact is not found",
         "summary": "Use complete location coverage to distinguish absence from uncertainty.",
         "dataset": "Salesforce HERB",

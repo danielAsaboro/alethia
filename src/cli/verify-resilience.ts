@@ -23,9 +23,9 @@ interface ResilienceRepository {
   writeGraph(graph: GraphWriteBundle): Promise<void>;
   getPresence(graph: GraphWriteBundle): Promise<{ nodes: number; edges: number }>;
   findNativePaths(input: NativePathInput): Promise<Array<{
-    operation: "algo.SPpaths";
+    operation: "algo.SPpaths" | "algo.SPpaths.sequence";
     queryId: string;
-    roundTrips: 1;
+    roundTrips: number;
     pathLength: number;
   }>>;
 }
@@ -184,8 +184,8 @@ async function main() {
       runCases: (candidate) =>
         runFirstPrizeCases(candidate as unknown as CaseRepository),
     });
-    if (report.replay.attempted !== 8 || report.replay.failed !== 0) {
-      throw new Error("Resilience replay did not complete all eight real-data cases");
+    if (report.replay.attempted !== 11 || report.replay.failed !== 0) {
+      throw new Error("Resilience replay did not complete all eleven real-data cases");
     }
     const output = path.resolve(options.output);
     await mkdir(path.dirname(output), { recursive: true });

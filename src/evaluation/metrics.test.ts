@@ -142,4 +142,46 @@ describe("scoreAttemptsV2", () => {
     expect(report.grounding).toEqual({ accepted: 2, rejected: 0, acceptanceRate: 1, rejectionRate: 0 });
     expect(report.latency).toEqual({ p50Ms: 20, p95Ms: 40 });
   });
+
+  it("rejects reordered or extra graph relationships instead of treating them as a set", () => {
+    const report = scoreAttemptsV2([{
+      schemaVersion: 2,
+      caseId: "ordered-path",
+      status: "completed",
+      latencyMs: 1,
+      verdict: "SUPPORTED",
+      facts: [],
+      evidenceDocumentIds: [],
+      relationships: ["SUPPORTED_BY", "HAS_OBSERVATION", "ASSERTS"],
+      coverageState: "complete",
+      conflictState: "not_applicable",
+      grounding: { accepted: 0, rejected: 0 },
+      graphProofs: [{
+        queryId: "query-live",
+        live: true,
+        relationshipTypes: ["SUPPORTED_BY", "HAS_OBSERVATION", "ASSERTS"],
+        pathLength: 3,
+      }],
+    }], [{
+      caseId: "ordered-path",
+      expectedVerdict: "SUPPORTED",
+      expectedFacts: [],
+      expectedEvidenceDocumentIds: [],
+      expectedRelationships: ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
+      forbiddenRelationships: [],
+      requiredCoverageState: "complete",
+      expectedConflictState: "not_applicable",
+      requiredGraphProof: {
+        requiredRelationships: ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
+        minimumPathLength: 3,
+        maximumPathLength: 3,
+        requireLiveQueryId: true,
+      },
+      expectedIdentityState: "not_applicable",
+      expectedAlignmentState: "not_applicable",
+    }]);
+
+    expect(report.relationshipAccuracy).toBe(0);
+    expect(report.graphProofAccuracy).toBe(0);
+  });
 });

@@ -1,34 +1,53 @@
 import { describe, expect, it } from "vitest";
 import type { CaseRepository } from "./run-case";
 import { runJudgeCase } from "./run-case";
-import type { HydraPathProof, NativePathInput } from "@/hydra/client";
+import type { ExactPathInput, HydraPathProof, NativePathInput } from "@/hydra/client";
 
-function nativePath(input: NativePathInput): HydraPathProof {
-  const relationshipType = input.relationshipTypes[0] ?? "ASSERTS";
+function nodeLabel(logicalId: string): string {
+  if (logicalId.startsWith("identity_candidate_decision")) return "ResolutionDecision";
+  if (logicalId.startsWith("alignment_decision")) return "AlignmentDecision";
+  if (logicalId.startsWith("source_term")) return "SourceSchemaTerm";
+  if (logicalId.startsWith("ontology")) return "OntologyTerm";
+  if (logicalId.startsWith("source") || logicalId.startsWith("s")) return "SourceObject";
+  if (logicalId.startsWith("claim") || logicalId.startsWith("c")) return "Claim";
+  return "Entity";
+}
+
+function nativePath(input: NativePathInput | ExactPathInput): HydraPathProof {
+  const relationshipTypes = input.relationshipTypes;
+  const nodeLogicalIds = "nodeLogicalIds" in input
+    ? input.nodeLogicalIds
+    : [
+        input.sourceLogicalId,
+        ...relationshipTypes.slice(1).map((_, index) => `middle-${index}`),
+        input.targetLogicalId,
+      ];
   return {
-    operation: "algo.SPpaths",
+    operation: "nodeLogicalIds" in input ? "algo.SPpaths.sequence" : "algo.SPpaths",
     consistency: "strong",
-    queryId: `query-${input.sourceLogicalId}-${input.targetLogicalId}`,
+    queryId: `query-${nodeLogicalIds[0]}-${nodeLogicalIds.at(-1)}`,
+    ...( "nodeLogicalIds" in input
+      ? { queryIds: relationshipTypes.map((_, index) => `query-segment-${index}`) }
+      : {}),
     readEpoch: 123,
     bookmark: "sgk:test:123",
     latencyMs: 4.2,
-    roundTrips: 1,
-    pathLength: 1,
-    pathWeight: 1,
+    roundTrips: "nodeLogicalIds" in input ? relationshipTypes.length : 1,
+    pathLength: relationshipTypes.length,
+    pathWeight: relationshipTypes.length,
     pathCost: 0,
-    nodes: [
-      { id: 1, labels: ["Entity"], logicalId: input.sourceLogicalId },
-      { id: 2, labels: ["SourceObject"], logicalId: input.targetLogicalId },
-    ],
-    relationships: [
-      {
-        id: 3,
-        type: relationshipType,
-        sourceId: 1,
-        targetId: 2,
-        logicalId: "edge-test",
-      },
-    ],
+    nodes: nodeLogicalIds.map((logicalId, index) => ({
+      id: index + 1,
+      labels: [nodeLabel(logicalId)],
+      logicalId,
+    })),
+    relationships: relationshipTypes.map((type, index) => ({
+      id: index + 100,
+      type,
+      sourceId: index + 1,
+      targetId: index + 2,
+      logicalId: `edge-test-${index}`,
+    })),
   };
 }
 
@@ -46,6 +65,7 @@ function repository(): CaseRepository {
     findClaimEvidence: async () => [],
     findTeamMemberEvidence: async () => [],
     findNativePaths: async (input) => [nativePath(input)],
+    findExactPath: async (input) => [nativePath(input)],
   };
 }
 
@@ -56,6 +76,11 @@ describe("runJudgeCase", () => {
     expect(workspace.evidence).toHaveLength(2);
     expect(workspace.traversal).toContain("HAS_OBSERVATION");
     expect(workspace.ablation.result).toContain("disputed");
+    expect(workspace.graphProof.relationshipTypes).toEqual([
+      "ASSERTS",
+      "HAS_OBSERVATION",
+      "SUPPORTED_BY",
+    ]);
   });
 
   it("fails closed when required Hydra evidence is missing", async () => {
@@ -109,6 +134,7 @@ describe("runJudgeCase", () => {
     expect(workspace.evidence.map((item) => item.value)).toEqual(["flag required", "no public flag"]);
     expect(workspace.decision).toMatchObject({ status: "unresolved", policy: undefined });
     expect(workspace.counterfactual).toMatch(/supersession|authority/i);
+    expect(workspace.graphProof.nodes[0]?.labels).toContain("Entity");
   });
 
   it("fails closed when the observation path omits a claim considered by the conflict", async () => {
@@ -220,6 +246,39 @@ describe("runJudgeCase", () => {
 
     const workspace = await runJudgeCase("owner-is-not-owner", aligned);
     expect(workspace.answer).toBe("No. FILE_OWNER and OPPORTUNITY_OWNER are distinct ontology relations.");
+  });
+
+  it("returns the persisted rejected generic owner alignment", async () => {
+    const aligned = repository();
+    aligned.findAlignmentDecisions = async (termId) => termId.includes("390378")
+      ? [
+          { decisionId: "accepted-file", status: "accepted", sourceTermId: termId, ontologyTermId: "ontology_file_owner", ontologyTermName: "FILE_OWNER", relationship: "MAPS_TO", reason: "exact_registry_rule" },
+          { decisionId: "alignment_decision_rejected", status: "rejected", sourceTermId: termId, ontologyTermId: "ontology_generic_owns", ontologyTermName: "OWNS", relationship: "REJECTED_MAPPING", reason: "domain_range_mismatch" },
+        ]
+      : [];
+
+    const workspace = await runJudgeCase("document-owner-rejects-generic-owns", aligned);
+
+    expect(workspace.answer).toMatch(/does not map to OWNS/);
+    expect(workspace.decision.status).toBe("rejected");
+    expect(workspace.graphProof.relationshipTypes).toEqual(["REJECTED_MAPPING"]);
+  });
+
+  it("returns the persisted accepted exact-ID identity link", async () => {
+    const linked = repository();
+    linked.findIdentityDecision = async () => ({
+      decisionId: "identity_candidate_decision_aba2cf1321e05346466dd5d3",
+      status: "accepted",
+      sourceObjectIds: ["source_object_1055157bd8bdbc84930129e5", "source_object_f7913937105e8e7e894b0ad2"],
+      signalKinds: ["external_id_exact", "name_similarity"],
+      constraintKinds: [],
+    });
+
+    const workspace = await runJudgeCase("emma-taylor-exact-link", linked);
+
+    expect(workspace.answer).toMatch(/resolve to Emma Taylor/);
+    expect(workspace.decision.status).toBe("accepted");
+    expect(workspace.evidence).toHaveLength(2);
   });
 
   it("fails closed unless the identity rejection and hard blocker are present", async () => {

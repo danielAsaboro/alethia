@@ -51,10 +51,10 @@ function validPath(): Record<string, unknown> {
   };
 }
 
-function hydraResponse(path: Record<string, unknown>): Response {
+function hydraResponse(path: Record<string, unknown>, queryId = "native-path-query-1"): Response {
   return new Response(
     JSON.stringify({
-      query_id: "native-path-query-1",
+      query_id: queryId,
       columns: ["path", "pathWeight", "pathCost"],
       rows: [
         [
@@ -201,6 +201,36 @@ describe("HydraRepository.findNativePaths", () => {
         pathCount: 1,
       }),
     ).rejects.toThrow(TypeError);
+  });
+});
+
+describe("HydraRepository.findExactPath", () => {
+  it("combines strong native single-hop proofs for the requested node and relationship sequence", async () => {
+    const path = validPath();
+    const nodes = path.nodes as unknown[];
+    const relationships = path.relationships as unknown[];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(hydraResponse({ nodes: nodes.slice(0, 2), relationships: relationships.slice(0, 1) }, "exact-segment-1"))
+      .mockResolvedValueOnce(hydraResponse({ nodes: nodes.slice(1, 3), relationships: relationships.slice(1, 2) }, "exact-segment-2"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const paths = await repository().findExactPath({
+      nodeLogicalIds: [sourceLogicalId, "claim_native_path_middle", targetLogicalId],
+      relationshipTypes: ["ASSERTS", "SUPPORTED_BY"],
+    });
+
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toMatchObject({
+      operation: "algo.SPpaths.sequence",
+      consistency: "strong",
+      pathLength: 2,
+      roundTrips: 2,
+      queryIds: ["exact-segment-1", "exact-segment-2"],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const requests = fetchMock.mock.calls.map((call) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>);
+    expect(requests.every((request) => request.consistency === "strong")).toBe(true);
+    expect(requests.every((request) => String(request.query).includes("CALL algo.SPpaths"))).toBe(true);
   });
 });
 

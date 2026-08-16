@@ -21,7 +21,7 @@ function frozenResult(
     status: "completed",
     latencyMs: 4,
     workspace: {
-      case: { id: caseId, kind, title: "x", question: "q", summary: "s", dataset: "ERB", version: "v" },
+      case: { id: caseId, kind, behavior: kind === "conflict" ? "resolved_conflict" : "simple_lookup", title: "x", question: "q", summary: "s", dataset: "ERB", version: "v" },
       verdict,
       answer,
       evidence,
@@ -34,6 +34,7 @@ function frozenResult(
         operation: "algo.SPpaths",
         consistency: "strong",
         queryId: "query-1",
+        queryIds: ["query-1"],
         readEpoch: 1,
         bookmark: "sgk:test:1",
         latencyMs: 1,
@@ -41,6 +42,11 @@ function frozenResult(
         pathLength: 2,
         path: "entity → claim → source",
         relationshipTypes: ["ASSERTS", "SUPPORTED_BY"],
+        nodes: [
+          { logicalId: "entity-1", labels: ["Entity"] },
+          { logicalId: "claim-1", labels: ["Claim"] },
+          { logicalId: "source-1", labels: ["SourceObject"] },
+        ],
       },
     },
   };

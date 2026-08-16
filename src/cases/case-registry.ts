@@ -10,15 +10,43 @@ export type JudgeCaseKind =
   | "simple_lookup"
   | "multi_hop";
 
+export type JudgeCaseBehavior =
+  | "simple_lookup"
+  | "multi_hop"
+  | "resolved_conflict"
+  | "unresolved_conflict"
+  | "superseded"
+  | "identity_accept"
+  | "identity_reject"
+  | "alignment_accept"
+  | "alignment_reject"
+  | "not_found"
+  | "unknown";
+
 export interface JudgeCase {
   id: string;
   kind: JudgeCaseKind;
+  behavior: JudgeCaseBehavior;
   title: string;
   question: string;
   summary: string;
   dataset: string;
   version: string;
 }
+
+const behaviors = new Set<JudgeCaseBehavior>([
+  "simple_lookup",
+  "multi_hop",
+  "resolved_conflict",
+  "unresolved_conflict",
+  "superseded",
+  "identity_accept",
+  "identity_reject",
+  "alignment_accept",
+  "alignment_reject",
+  "not_found",
+  "unknown",
+]);
 
 const kindByCategory: Record<EvaluationCategory, JudgeCaseKind> = {
   simple_lookup: "simple_lookup",
@@ -42,10 +70,19 @@ function presentationField(
   return value;
 }
 
+function caseBehavior(execution: Record<string, unknown>, caseId: string): JudgeCaseBehavior {
+  const behavior = execution.behavior;
+  if (typeof behavior !== "string" || !behaviors.has(behavior as JudgeCaseBehavior)) {
+    throw new Error(`Runtime case ${caseId} has an invalid behavior`);
+  }
+  return behavior as JudgeCaseBehavior;
+}
+
 const runtimeManifest = parseRuntimeManifestV2(runtimeManifestJson);
 const cases: JudgeCase[] = runtimeManifest.cases.map((item) => ({
   id: item.id,
   kind: kindByCategory[item.category],
+  behavior: caseBehavior(item.execution, item.id),
   title: presentationField(item.execution, "title", item.id),
   question: item.question,
   summary: presentationField(item.execution, "summary", item.id),

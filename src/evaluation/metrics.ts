@@ -98,6 +98,10 @@ function setCounts(expectedValues: string[], actualValues: string[]) {
   };
 }
 
+function sameSequence(expected: string[], actual: string[]): boolean {
+  return expected.length === actual.length && expected.every((value, index) => value === actual[index]);
+}
+
 function graphProofMatches(attempt: CompletedEvaluationAttemptV2, label: EvaluationLabelV2): boolean {
   const required = label.requiredGraphProof;
   if (
@@ -116,7 +120,7 @@ function graphProofMatches(attempt: CompletedEvaluationAttemptV2, label: Evaluat
     if (required.targetLabel && proof.targetLabel !== required.targetLabel) return false;
     if (required.minimumPathLength !== undefined && proof.pathLength < required.minimumPathLength) return false;
     if (required.maximumPathLength !== undefined && proof.pathLength > required.maximumPathLength) return false;
-    return required.requiredRelationships.every((relationship) => proof.relationshipTypes.includes(relationship));
+    return sameSequence(required.requiredRelationships, proof.relationshipTypes);
   });
 }
 
@@ -199,7 +203,9 @@ export function scoreAttemptsV2(
     trueEvidence += evidenceCounts.truePositive;
     invalidEvidence += evidenceCounts.falsePositive;
 
-    const hasExpectedRelationships = label.expectedRelationships.every((item) => result?.relationships.includes(item));
+    const hasExpectedRelationships = result
+      ? sameSequence(label.expectedRelationships, result.relationships)
+      : false;
     const hasForbiddenRelationships = label.forbiddenRelationships.some((item) => result?.relationships.includes(item));
     if (result && hasExpectedRelationships && !hasForbiddenRelationships) correctRelationships += 1;
     if (result?.coverageState === label.requiredCoverageState) correctCoverage += 1;

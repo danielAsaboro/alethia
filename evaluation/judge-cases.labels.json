@@ -6,11 +6,11 @@
       "expectedVerdict": "SUPPORTED",
       "expectedFacts": [{ "kind": "percentage", "value": 30 }],
       "expectedEvidenceDocumentIds": ["dsid_5f3a672da4974781a5577b0f3d4993e9", "dsid_8ffbd9fe82df457ca67d4fbc9ff1090c"],
-      "expectedRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"],
+      "expectedRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
       "forbiddenRelationships": [],
       "requiredCoverageState": "complete",
       "expectedConflictState": "resolved",
-      "requiredGraphProof": { "requiredRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Entity", "targetLabel": "SourceObject", "requiredRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -19,11 +19,11 @@
       "expectedVerdict": "SUPPORTED",
       "expectedFacts": [{ "kind": "duration", "value": 120, "unit": "seconds" }],
       "expectedEvidenceDocumentIds": ["dsid_9f2e6aa7f6c14b1db1c6f922a1d4b4d7", "dsid_b8ab9778e36543159da49dba3ad9c76d"],
-      "expectedRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"],
+      "expectedRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
       "forbiddenRelationships": [],
       "requiredCoverageState": "complete",
       "expectedConflictState": "resolved",
-      "requiredGraphProof": { "requiredRelationships": ["HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Entity", "targetLabel": "SourceObject", "requiredRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -32,11 +32,11 @@
       "expectedVerdict": "DISPUTED",
       "expectedFacts": [{ "kind": "identifier_set", "values": ["the 'tool-signal' envelope is only applied when callers include a 'enable_tool_signal' flag (default true for our hosted API)", "- There is no per-request enable_tool_signal flag exposed on the public OpenAI-compatible surface."] }],
       "expectedEvidenceDocumentIds": ["dsid_96912c22b0b04024b573606105bd5ea0", "dsid_8a085e12606b4ea79f43ee176cba2ccb"],
-      "expectedRelationships": ["SUPPORTED_BY"],
+      "expectedRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"],
       "forbiddenRelationships": ["DECIDED_BY"],
       "requiredCoverageState": "complete",
       "expectedConflictState": "unresolved",
-      "requiredGraphProof": { "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Entity", "targetLabel": "SourceObject", "requiredRelationships": ["ASSERTS", "HAS_OBSERVATION", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -49,9 +49,22 @@
       "forbiddenRelationships": ["OWNS"],
       "requiredCoverageState": "complete",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["MAPS_TO"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "SourceSchemaTerm", "targetLabel": "OntologyTerm", "requiredRelationships": ["MAPS_TO"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "accepted"
+    },
+    {
+      "caseId": "document-owner-rejects-generic-owns",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "identifier_set", "values": ["OWNS", "FILE_OWNER"] }],
+      "expectedEvidenceDocumentIds": ["document.owner"],
+      "expectedRelationships": ["REJECTED_MAPPING"],
+      "forbiddenRelationships": ["MAPS_TO"],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "sourceLabel": "AlignmentDecision", "targetLabel": "OntologyTerm", "requiredRelationships": ["REJECTED_MAPPING"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "not_applicable",
+      "expectedAlignmentState": "rejected"
     },
     {
       "caseId": "david-taylor-collision",
@@ -62,8 +75,21 @@
       "forbiddenRelationships": ["RESOLVES_TO"],
       "requiredCoverageState": "complete",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["CONSIDERS"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "ResolutionDecision", "targetLabel": "SourceObject", "requiredRelationships": ["CONSIDERS"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
       "expectedIdentityState": "rejected",
+      "expectedAlignmentState": "not_applicable"
+    },
+    {
+      "caseId": "emma-taylor-exact-link",
+      "expectedVerdict": "SUPPORTED",
+      "expectedFacts": [{ "kind": "text", "value": "Yes. The employee and team-structure records resolve to Emma Taylor." }],
+      "expectedEvidenceDocumentIds": ["source_object_1055157bd8bdbc84930129e5", "source_object_f7913937105e8e7e894b0ad2"],
+      "expectedRelationships": ["CONSIDERS"],
+      "forbiddenRelationships": ["BLOCKED_BY"],
+      "requiredCoverageState": "complete",
+      "expectedConflictState": "not_applicable",
+      "requiredGraphProof": { "sourceLabel": "ResolutionDecision", "targetLabel": "SourceObject", "requiredRelationships": ["CONSIDERS"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "expectedIdentityState": "accepted",
       "expectedAlignmentState": "not_applicable"
     },
     {
@@ -75,7 +101,7 @@
       "forbiddenRelationships": [],
       "requiredCoverageState": "partial",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Entity", "targetLabel": "SourceObject", "requiredRelationships": ["ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 2, "maximumPathLength": 2, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -88,7 +114,7 @@
       "forbiddenRelationships": [],
       "requiredCoverageState": "complete",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Claim", "targetLabel": "SourceObject", "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -101,7 +127,7 @@
       "forbiddenRelationships": [],
       "requiredCoverageState": "complete",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Entity", "targetLabel": "SourceObject", "requiredRelationships": ["HAS_TEAM_MEMBER", "ASSERTS", "SUPPORTED_BY"], "minimumPathLength": 3, "maximumPathLength": 3, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     },
@@ -114,7 +140,7 @@
       "forbiddenRelationships": [],
       "requiredCoverageState": "complete",
       "expectedConflictState": "not_applicable",
-      "requiredGraphProof": { "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
+      "requiredGraphProof": { "sourceLabel": "Claim", "targetLabel": "SourceObject", "requiredRelationships": ["SUPPORTED_BY"], "minimumPathLength": 1, "maximumPathLength": 1, "requireLiveQueryId": true },
       "expectedIdentityState": "not_applicable",
       "expectedAlignmentState": "not_applicable"
     }

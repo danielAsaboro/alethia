@@ -4,13 +4,15 @@ import { listJudgeCases } from "./case-registry";
 describe("judge case registry", () => {
   it("contains the runtime-safe enterprise truth lanes including a distinct disputed case", () => {
     const cases = listJudgeCases();
-    expect(cases).toHaveLength(9);
+    expect(cases).toHaveLength(11);
     expect(cases.map((item) => item.id)).toEqual([
       "streamly-credit-conflict",
       "handshake-ttl-conflict",
       "tool-signal-disputed",
       "owner-is-not-owner",
+      "document-owner-rejects-generic-owns",
       "david-taylor-collision",
+      "emma-taylor-exact-link",
       "favorite-lunch-boundary",
       "charlie-davis-role",
       "actiongenie-team",
@@ -28,5 +30,22 @@ describe("judge case registry", () => {
     expect(serialized).not.toMatch(/gold_answer|answer_facts|expected_doc_ids/);
     expect(serialized).not.toMatch(/entityLogicalId|predicateFamily/);
     expect(serialized).not.toMatch(/30%|20%|120 seconds|180-second|Software Engineer|66 team members/);
+  });
+
+  it("covers each required live truth behavior exactly once", () => {
+    expect(new Set(listJudgeCases().map((item) => item.behavior))).toEqual(new Set([
+      "simple_lookup",
+      "multi_hop",
+      "resolved_conflict",
+      "unresolved_conflict",
+      "superseded",
+      "identity_accept",
+      "identity_reject",
+      "alignment_accept",
+      "alignment_reject",
+      "not_found",
+      "unknown",
+    ]));
+    expect(listJudgeCases()).toHaveLength(11);
   });
 });

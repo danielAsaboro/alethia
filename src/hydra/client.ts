@@ -192,14 +192,20 @@ export interface NativePathInput {
   pathCount: number;
 }
 
+export interface ExactPathInput {
+  nodeLogicalIds: string[];
+  relationshipTypes: GraphRelationshipType[];
+}
+
 export interface HydraPathProof {
-  operation: "algo.SPpaths";
+  operation: "algo.SPpaths" | "algo.SPpaths.sequence";
   consistency: "strong";
   queryId: string;
+  queryIds?: string[];
   readEpoch: number | null;
   bookmark: string | null;
   latencyMs: number;
-  roundTrips: 1;
+  roundTrips: number;
   pathLength: number;
   pathWeight: number;
   pathCost: number;
@@ -428,6 +434,53 @@ export class HydraRepository {
     );
 
     return result.rows.map((row) => this.parseNativePath(row, result, input));
+  }
+
+  async findExactPath(input: ExactPathInput): Promise<HydraPathProof[]> {
+    if (
+      input.nodeLogicalIds.length < 2 ||
+      input.nodeLogicalIds.length !== input.relationshipTypes.length + 1 ||
+      input.nodeLogicalIds.some((logicalId) => !logicalId) ||
+      input.relationshipTypes.some((type) => !relationshipTypes.includes(type))
+    ) {
+      throw new TypeError("Exact path must contain one supported relationship between every non-empty node ID");
+    }
+    const segments = await Promise.all(input.relationshipTypes.map(async (relationshipType, index) => {
+      const paths = await this.findNativePaths({
+        sourceLogicalId: input.nodeLogicalIds[index]!,
+        targetLogicalId: input.nodeLogicalIds[index + 1]!,
+        relationshipTypes: [relationshipType],
+        maxLength: 1,
+        pathCount: 1,
+      });
+      if (paths.length !== 1 || paths[0]?.relationships[0]?.type !== relationshipType) {
+        throw new TypeError("HydraDB exact path segment is missing or ambiguous");
+      }
+      return paths[0];
+    }));
+    const first = segments[0]!;
+    const last = segments.at(-1)!;
+    const allEpochsPresent = segments.every((segment) => segment.readEpoch !== null);
+    const latest = allEpochsPresent
+      ? segments.reduce((current, segment) =>
+          segment.readEpoch! > current.readEpoch! ? segment : current,
+        )
+      : last;
+    return [{
+      operation: "algo.SPpaths.sequence",
+      consistency: "strong",
+      queryId: first.queryId,
+      queryIds: segments.map((segment) => segment.queryId),
+      readEpoch: allEpochsPresent ? latest.readEpoch : null,
+      bookmark: latest.bookmark,
+      latencyMs: Math.max(...segments.map((segment) => segment.latencyMs)),
+      roundTrips: segments.length,
+      pathLength: input.relationshipTypes.length,
+      pathWeight: segments.reduce((total, segment) => total + segment.pathWeight, 0),
+      pathCost: segments.reduce((total, segment) => total + segment.pathCost, 0),
+      nodes: [first.nodes[0]!, ...segments.map((segment) => segment.nodes[1]!)],
+      relationships: segments.map((segment) => segment.relationships[0]!),
+    }];
   }
 
   async findNativeMultiPaths(

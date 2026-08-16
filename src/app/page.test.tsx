@@ -6,15 +6,17 @@ import { EvidenceWorkspace } from "./components/evidence-workspace";
 import Home from "./page";
 
 describe("SourceTruce evidence court", () => {
-  it("renders all eight one-click cases without ontology implementation inputs", () => {
+  it("renders all eleven one-click cases without ontology implementation inputs", () => {
     const html = renderToStaticMarkup(<Home />);
 
     expect(html).toContain("SourceTruce");
     expect(html).toContain("Enterprise evidence court");
     expect(html).toContain("Resolve a conflict");
-    expect(html).toContain("Adjudicate incomplete lifecycle evidence");
+    expect(html).toContain("Prove a supersession");
     expect(html).toContain("Disambiguate owner semantics");
+    expect(html).toContain("Reject an incompatible alignment");
     expect(html).toContain("Resolve an identity collision");
+    expect(html).toContain("Accept a verified identity link");
     expect(html).toContain("Admit incomplete coverage");
     expect(html).toContain("Retrieve a canonical fact");
     expect(html).toContain("Traverse a product team");
