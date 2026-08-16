@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  availabilityContrastExcerpt,
   assertNoEvaluationLabels,
   boundedEvidenceExcerpt,
   freezeConflictRuntime,
@@ -97,6 +98,27 @@ function runtimeInputs(
 }
 
 describe("label-free ERB conflict runtime", () => {
+  it("surfaces an exact older availability contrast without unrelated detail", () => {
+    const quote = [
+      "Megan: So Hosted can't do BYOK? Like customer KMS key?",
+      "Naomi: Standard Hosted uses provider-managed keys.",
+      "Unrelated retention discussion.",
+    ].join("\n");
+
+    expect(
+      availabilityContrastExcerpt(
+        "Does the Hosted SKU support customer-managed KMS keys (BYOK)?",
+        quote,
+      ),
+    ).toBe("Megan: So Hosted can't do BYOK? Like customer KMS key?");
+    expect(
+      availabilityContrastExcerpt(
+        "Who approves termination after 72 hours?",
+        "Infra manager says not 72 hours.",
+      ),
+    ).toBeNull();
+  });
+
   it("keeps exact question-relevant old guidance while removing unrelated long text", () => {
     const quote = [
       "Earlier negotiation thread:",

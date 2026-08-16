@@ -220,6 +220,32 @@ export function boundedEvidenceExcerpt(
     .join(" ");
 }
 
+export function availabilityContrastExcerpt(
+  question: string,
+  quote: string,
+): string | null {
+  if (!/\b(?:support|available|availability)\b/i.test(question)) return null;
+  const questionTokens = new Set(answerTokens(question));
+  const candidates = quote
+    .split(/\r?\n|\\n/)
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length >= 12 &&
+        line.length <= 320 &&
+        /\b(?:can['’]?t|cannot|doesn['’]?t|does\s+not|not\s+available|unsupported)\b/i.test(
+          line,
+        ),
+    )
+    .map((line) => ({
+      line,
+      overlap: answerTokens(line).filter((token) => questionTokens.has(token)).length,
+    }))
+    .filter(({ overlap }) => overlap > 0)
+    .sort((left, right) => right.overlap - left.overlap || left.line.length - right.line.length);
+  return candidates[0]?.line ?? null;
+}
+
 export function canonicalDigest(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalize(value)))
@@ -467,6 +493,29 @@ export function freezeConflictRuntime(input: {
       const nonControllingValues = values.filter(
         (value) => value !== promotion.winningValue,
       );
+      const earlierAvailabilityNotes = [
+        ...new Set(
+          accepted
+            .filter((item) => {
+              const value = item.observation.value;
+              return (
+                (typeof value === "string" ||
+                  typeof value === "number" ||
+                  typeof value === "boolean") &&
+                typeof item.observation.evidenceQuote === "string" &&
+                String(normalizeAnswerValue(manifestCase.question, value)) !==
+                  promotion.winningValue
+              );
+            })
+            .map((item) =>
+              availabilityContrastExcerpt(
+                manifestCase.question,
+                item.observation.evidenceQuote ?? "",
+              ),
+            )
+            .filter((note): note is string => note !== null),
+        ),
+      ];
       const answer = [
         winningValueIsQuote || promotion.winningValue.length > 500
           ? "Grounded answer is established by the controlling evidence below."
@@ -476,6 +525,9 @@ export function freezeConflictRuntime(input: {
           : "",
         nonControllingValues.length
           ? `Superseded or conflicting evidence is retained in the evidence graph for audit. Earlier/outdated or otherwise non-controlling value—not the current answer: ${nonControllingValues.join(" or ")}.`
+          : "",
+        earlierAvailabilityNotes.length
+          ? `Earlier/outdated availability note, superseded by the controlling guidance above: ${earlierAvailabilityNotes.join(" ")}`
           : "",
       ]
         .filter(Boolean)
