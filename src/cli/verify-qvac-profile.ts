@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -25,6 +26,11 @@ export function parseVerifyQvacProfileArgs(args: string[]): Args {
 }
 
 function sha256(value: string | Buffer): string { return createHash("sha256").update(value).digest("hex"); }
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk as Buffer);
+  return hash.digest("hex");
+}
 
 async function erbDocuments(input: string) {
   const result: Array<{ id: string; sourceSystem: string; body: string }> = [];
@@ -55,17 +61,16 @@ async function main(): Promise<void> {
   const client = new QvacClient();
   const extractions = [];
   for (const item of [documents[0]!, documents[1]!, boundary]) extractions.push(await extraction(client, item, item === boundary ? "Extract one explicit field value visible near the end of this canonical source slice." : "Extract one explicit operational fact that answers the document title or central subject."));
-  const [serverLog, modelBytes] = await Promise.all([readFile(path.resolve(args.serverLog), "utf8"), readFile(path.resolve(args.model))]);
+  const [serverLog, modelSha256, modelBytesAfter] = await Promise.all([readFile(path.resolve(args.serverLog), "utf8"), sha256File(path.resolve(args.model)), stat(path.resolve(args.model))]);
   const telemetry = parseQvacTelemetry({ log: serverLog, config: profile });
-  const modelSha256 = sha256(modelBytes);
-  if (modelSha256 !== QVAC_MODEL_SHA256 || modelBytesBefore.size !== modelBytes.length) throw new Error("Pinned QVAC model verification failed");
+  if (modelSha256 !== QVAC_MODEL_SHA256 || modelBytesBefore.size !== modelBytesAfter.size) throw new Error("Pinned QVAC model verification failed");
   const boundaryExtraction = extractions[2]!;
   const boundaryClaims = boundaryExtraction.validation.status === "accepted" ? boundaryExtraction.validation.claims : [];
   const nearBoundaryGrounded = boundaryClaims.some((claim) => boundary.body.lastIndexOf(claim.evidenceQuote) / boundary.body.length >= 0.75);
   const artifact = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    model: { ...qvacRuntimeModel(QVAC_MODEL_ALIAS), absolutePath: path.resolve(args.model), bytes: modelBytes.length, verifiedSha256: modelSha256 },
+    model: { ...qvacRuntimeModel(QVAC_MODEL_ALIAS), absolutePath: path.resolve(args.model), bytes: modelBytesAfter.size, verifiedSha256: modelSha256 },
     configuredProfile: { contextSize: profile.ctx_size ?? null, gpuLayersRequested: profile.gpu_layers ?? null },
     observedTelemetry: telemetry,
     serverLog: { path: path.resolve(args.serverLog), sha256: sha256(serverLog) },
