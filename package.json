@@ -22,6 +22,7 @@
     "qvac:model:fetch": "./scripts/fetch-qvac-model.sh",
     "qvac:serve": "./scripts/qvac-serve.sh",
     "qvac:smoke": "tsx src/cli/qvac-smoke.ts",
+    "qvac:verify-profile": "tsx src/cli/verify-qvac-profile.ts",
     "extract:erb-conflicts": "tsx src/cli/extract-erb-conflicts.ts",
     "freeze:erb-conflicts": "tsx src/cli/freeze-erb-conflicts.ts",
     "evaluate:erb-conflicts": "tsx src/cli/evaluate-erb-conflicts.ts",
