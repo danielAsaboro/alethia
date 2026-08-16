@@ -29,22 +29,22 @@ describe("evaluateAblationMatrix", () => {
       coverage: { claims: [], conflicts: [], coverage: { sufficient: false, missing: [{ sourceSystem: "herb", objectType: "employee", predicateFamily: "location", reason: "slice_missing" }] }, identity: resolved },
       identity: { ...verdictInput([left]), identity: { status: "ambiguous", candidateEntityIds: ["entity", "other"] } },
       alignment: { left, right, verdict: verdictInput([left, right]) },
-      nativePath: { verdict: verdictInput([left]), proofPresent: true },
+      nativePath: { verdict: verdictInput([left]), nativeProofPresent: true, clientPathFound: true, nativeRoundTrips: 1, clientRoundTrips: 4 },
     });
 
     expect(matrix.map((item) => item.id)).toEqual([
       "no_conflict_policy",
       "no_coverage_gate",
-      "no_identity_blocker",
+      "no_identity_blockers",
       "naive_field_alignment",
-      "no_native_graph_path",
+      "no_graph_traversal",
     ]);
     expect(matrix).toMatchObject([
       { baselineVerdict: "SUPPORTED", ablatedVerdict: "DISPUTED" },
       { baselineVerdict: "UNKNOWN", ablatedVerdict: "NOT_FOUND" },
       { baselineVerdict: "UNKNOWN", ablatedVerdict: "SUPPORTED" },
       { baselineVerdict: "SUPPORTED", ablatedVerdict: "DISPUTED" },
-      { baselineVerdict: "SUPPORTED", ablatedVerdict: "UNKNOWN" },
+      { baselineVerdict: "SUPPORTED", ablatedVerdict: "SUPPORTED", baselineRoundTrips: 1, ablatedRoundTrips: 4 },
     ]);
     expect(matrix.every((item) => item.explanation.length > 20)).toBe(true);
   });
@@ -55,7 +55,7 @@ describe("evaluateAblationMatrix", () => {
       coverage: verdictInput([]),
       identity: verdictInput([claim("a")]),
       alignment: { left: claim("a"), right: claim("b"), verdict: verdictInput([claim("a"), claim("b")]) },
-      nativePath: { verdict: verdictInput([claim("a")]), proofPresent: false },
+      nativePath: { verdict: verdictInput([claim("a")]), nativeProofPresent: false, clientPathFound: false, nativeRoundTrips: 0, clientRoundTrips: 0 },
     })).toThrow(/native path proof/i);
   });
 });

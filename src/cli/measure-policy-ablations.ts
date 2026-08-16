@@ -9,6 +9,7 @@ import {
   HydraRepository,
   type GraphClaimEvidence,
   type GraphObservationEvidence,
+  type NativePathInput,
 } from "@/hydra/client";
 
 const ids = {
@@ -165,13 +166,17 @@ export async function measurePolicyAblations(repository: HydraRepository) {
     },
   ];
   const role = evidenceClaim(roleRows[0]!, ids.knowledgeEntity);
-  const nativePaths = await repository.findNativePaths({
-    sourceLogicalId: role.id,
+  const nativePathInput = {
+    sourceLogicalId: ids.knowledgeEntity,
     targetLogicalId: role.sourceObjectId,
-    relationshipTypes: ["SUPPORTED_BY"],
-    maxLength: 1,
+    relationshipTypes: ["ASSERTS", "SUPPORTED_BY"],
+    maxLength: 2,
     pathCount: 1,
-  });
+  } satisfies NativePathInput;
+  const [nativePaths, clientPath] = await Promise.all([
+    repository.findNativePaths(nativePathInput),
+    repository.findClientPathBaseline(nativePathInput),
+  ]);
   const resolvedInput = (claims: Claim[]): VerdictInput => ({
     claims,
     conflicts: [],
@@ -189,10 +194,16 @@ export async function measurePolicyAblations(repository: HydraRepository) {
     coverage: { claims: [], conflicts: [], coverage, identity: { status: "resolved", entityId: ids.knowledgeEntity } },
     identity: { claims: groundedIdentityClaims, conflicts: [], coverage: complete, identity: { status: "ambiguous", candidateEntityIds: identityEntityIds } },
     alignment: { left: alignmentClaims[0], right: alignmentClaims[1], verdict: resolvedInput(alignmentClaims) },
-    nativePath: { verdict: resolvedInput([role]), proofPresent: nativePaths.length === 1 },
+    nativePath: {
+      verdict: resolvedInput([role]),
+      nativeProofPresent: nativePaths.length === 1,
+      clientPathFound: clientPath.found,
+      nativeRoundTrips: nativePaths[0]?.roundTrips ?? 0,
+      clientRoundTrips: clientPath.roundTrips,
+    },
   });
   return {
-    scope: "deterministic ablations over real HydraDB-frozen inputs; graph state unchanged",
+    scope: "executable production-policy ablations over real HydraDB-frozen inputs; graph state unchanged",
     inputProof: {
       conflictId: conflict.id,
       coverageSliceIds: slices.map((slice) => slice.id).sort(),
@@ -200,6 +211,8 @@ export async function measurePolicyAblations(repository: HydraRepository) {
       identityEntityIds: identityEntityIds.sort(),
       alignmentDecisionIds: alignmentClaims.map((claim) => claim.id).sort(),
       nativePathQueryId: nativePaths[0]!.queryId,
+      nativePathTelemetry: repository.pathTelemetry(nativePaths[0]!),
+      boundedClientPath: clientPath,
     },
     outcomes,
   };

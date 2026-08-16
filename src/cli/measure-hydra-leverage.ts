@@ -12,6 +12,7 @@ import {
   type NativeMultiPathInput,
   type NativePathInput,
 } from "@/hydra/client";
+import { toHydraQueryTelemetry } from "@/hydra/query-telemetry";
 
 interface MeasureArgs { output: string }
 
@@ -103,6 +104,7 @@ export async function measureHydraLeverage(repository: MeasureRepository) {
       clientRoundTrips: client.roundTrips,
       avoidedRoundTrips: client.roundTrips - native.roundTrips,
       clientToNativeLatencyRatio: latencyRatio,
+      telemetry: toHydraQueryTelemetry(native),
     },
     multiplePairs: {
       operation: multi.operation,
@@ -111,6 +113,12 @@ export async function measureHydraLeverage(repository: MeasureRepository) {
       latencyMs: multi.latencyMs,
       roundTrips: multi.roundTrips,
       queryId: multi.queryId,
+      telemetry: toHydraQueryTelemetry({
+        ...multi,
+        pathLength: Math.max(...multi.paths.map((item) => item.pathLength)),
+        nodes: multi.paths.flatMap((item) => item.nodes),
+        relationships: multi.paths.flatMap((item) => item.relationships),
+      }),
     },
   };
 }

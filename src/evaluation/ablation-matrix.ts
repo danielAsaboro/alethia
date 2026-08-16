@@ -5,15 +5,17 @@ import { decideVerdict } from "@/verdicts/decide-verdict";
 export type AblationId =
   | "no_conflict_policy"
   | "no_coverage_gate"
-  | "no_identity_blocker"
+  | "no_identity_blockers"
   | "naive_field_alignment"
-  | "no_native_graph_path";
+  | "no_graph_traversal";
 
 export interface AblationOutcome {
   id: AblationId;
   baselineVerdict: Verdict;
   ablatedVerdict: Verdict;
   explanation: string;
+  baselineRoundTrips?: number;
+  ablatedRoundTrips?: number;
 }
 
 export interface AblationInputs {
@@ -21,11 +23,17 @@ export interface AblationInputs {
   coverage: VerdictInput;
   identity: VerdictInput;
   alignment: { left: Claim; right: Claim; verdict: VerdictInput };
-  nativePath: { verdict: VerdictInput; proofPresent: boolean };
+  nativePath: {
+    verdict: VerdictInput;
+    nativeProofPresent: boolean;
+    clientPathFound: boolean;
+    nativeRoundTrips: number;
+    clientRoundTrips: number;
+  };
 }
 
 export function evaluateAblationMatrix(input: AblationInputs): AblationOutcome[] {
-  if (!input.nativePath.proofPresent) {
+  if (!input.nativePath.nativeProofPresent) {
     throw new TypeError("A real native path proof is required for the baseline");
   }
   const conflictBaseline = decideVerdict(input.conflict).verdict;
@@ -79,10 +87,9 @@ export function evaluateAblationMatrix(input: AblationInputs): AblationOutcome[]
   }).verdict;
 
   const nativeBaseline = decideVerdict(input.nativePath.verdict).verdict;
-  const nativeAblated = decideVerdict({
-    ...input.nativePath.verdict,
-    identity: { status: "missing" },
-  }).verdict;
+  const nativeAblated = input.nativePath.clientPathFound
+    ? decideVerdict(input.nativePath.verdict).verdict
+    : decideVerdict({ ...input.nativePath.verdict, identity: { status: "missing" } }).verdict;
 
   return [
     {
@@ -100,7 +107,7 @@ export function evaluateAblationMatrix(input: AblationInputs): AblationOutcome[]
         "Bypassing bounded coverage converts an honest unknown into an unsupported claim that the requested fact was not found.",
     },
     {
-      id: "no_identity_blocker",
+      id: "no_identity_blockers",
       baselineVerdict: identityBaseline,
       ablatedVerdict: identityAblated,
       explanation:
@@ -114,11 +121,13 @@ export function evaluateAblationMatrix(input: AblationInputs): AblationOutcome[]
         "Treating same-named source fields as one predicate creates a false contradiction between distinct enterprise relations.",
     },
     {
-      id: "no_native_graph_path",
+      id: "no_graph_traversal",
       baselineVerdict: nativeBaseline,
       ablatedVerdict: nativeAblated,
       explanation:
-        "Removing the required HydraDB path proof forces the production evidence boundary to fail closed instead of returning an unproven answer.",
+        "Replacing HydraDB native traversal with bounded client expansion preserves this path only by issuing more graph queries and client-side bookkeeping.",
+      baselineRoundTrips: input.nativePath.nativeRoundTrips,
+      ablatedRoundTrips: input.nativePath.clientRoundTrips,
     },
   ];
 }

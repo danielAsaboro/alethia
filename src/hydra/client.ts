@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { hydraIntId } from "./hydra-id";
 import type { CoverageSlice } from "@/domain/ontology";
+import { toHydraQueryTelemetry, type HydraQueryTelemetry } from "./query-telemetry";
 
 const labels = [
   "Entity",
@@ -341,6 +342,10 @@ export class HydraRepository {
   }
 
   async close(): Promise<void> {}
+
+  pathTelemetry(proof: HydraPathProof): HydraQueryTelemetry {
+    return toHydraQueryTelemetry(proof);
+  }
 
   private async request(
     cypher: string,
