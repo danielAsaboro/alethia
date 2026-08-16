@@ -49,6 +49,8 @@ const ids = {
   conflict: "conflict_ba37432da763e77f186ba072",
   handshakeEntity: "entity_bbbccb0c3d43286a9836f543",
   handshakeConflict: "conflict_524fe5b1878058507b93dd95",
+  toolSignalEntity: "entity_403f2eafa7d443ad6212821d",
+  toolSignalConflict: "conflict_2687f02efba6edbe2d92be93",
   fileOwnerTerm: "source_term_390378ec7210fb25b3662ba0",
   opportunityOwnerTerm: "source_term_0354c371ffe861934bed28e6",
   identityDecision: "identity_candidate_decision_cfbaaae570ab4b5c306e83af",
@@ -64,7 +66,33 @@ function conflictPointers(caseId: string): { entityId: string; conflictId: strin
   if (caseId === "handshake-ttl-conflict") {
     return { entityId: ids.handshakeEntity, conflictId: ids.handshakeConflict };
   }
+  if (caseId === "tool-signal-disputed") {
+    return { entityId: ids.toolSignalEntity, conflictId: ids.toolSignalConflict };
+  }
   return undefined;
+}
+
+function extractorVersionRank(version: string): number {
+  const match = version.match(/(?:^|:)v(\d+)$/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function oneObservationPerClaim(
+  observations: GraphObservationEvidence[],
+  claimIds: string[],
+): GraphObservationEvidence[] {
+  return claimIds.map((claimId) => {
+    const candidates = observations
+      .filter((item) => item.claimLogicalId === claimId)
+      .sort(
+        (left, right) =>
+          extractorVersionRank(right.extractorVersion) - extractorVersionRank(left.extractorVersion) ||
+          right.observationLogicalId.localeCompare(left.observationLogicalId),
+      );
+    const selected = candidates[0];
+    if (!selected) throw new Error("Conflict case is not ready in HydraDB");
+    return selected;
+  });
 }
 
 function literalValue(observation: GraphObservationEvidence): string {
@@ -188,9 +216,10 @@ export async function runJudgeCase(caseId: string, repository: CaseRepository): 
       throw new Error("Conflict case is not ready in HydraDB");
     }
     const consideredClaimIds = new Set(decision.claimIds);
-    const conflictObservations = observations.filter((observation) =>
+    const scopedObservations = observations.filter((observation) =>
       consideredClaimIds.has(observation.claimLogicalId),
     );
+    const conflictObservations = oneObservationPerClaim(scopedObservations, decision.claimIds);
     if (conflictObservations.length < 2) {
       throw new Error("Conflict case is not ready in HydraDB");
     }
@@ -520,6 +549,7 @@ function conflictWorkspace(
   winner: GraphObservationEvidence,
   graphProof: GraphProofSummary,
 ): CaseWorkspace {
+  const values = observations.map((item) => literalValue(item));
   return {
     case: caseValue,
     verdict: "SUPPORTED",
@@ -529,7 +559,7 @@ function conflictWorkspace(
     coverage: { sufficient: true, detail: "Both contradiction-bearing canonical sources were examined." },
     counterfactual: "A later grounded claim that supersedes the applied policy would change the answer.",
     traversal: "Entity → ASSERTS → Claim → HAS_OBSERVATION → SourceObject; Conflict → DECIDED_BY → AuthorityPolicy",
-    ablation: { label: "No conflict policy", result: "20% and 30% remain disputed; no controlling answer can be issued." },
+    ablation: { label: "No conflict policy", result: `${values.join(" and ")} remain disputed; no controlling answer can be issued.` },
     graphProof,
   };
 }
@@ -546,11 +576,11 @@ function disputedWorkspace(
     verdict: "DISPUTED",
     answer: `Unresolved conflict: ${values.join(" vs ")}.`,
     evidence: observations.map((item) => ({ source: `${item.sourceSystem} · ${item.sourceNativeId}`, quote: item.evidenceQuote, value: literalValue(item) })),
-    decision: { status: "unresolved", reason: "Only one competing claim has a grounded lifecycle; the policy refuses to infer precedence from one-sided metadata.", policy: decision.policyId },
+    decision: { status: "unresolved", reason: "The competing claims have no grounded lifecycle or source-authority distinction that can select a winner.", policy: decision.policyId },
     coverage: { sufficient: true, detail: "Both contradiction-bearing canonical sources were examined." },
-    counterfactual: "Grounded lifecycle evidence for the second claim would let the policy compare both sides.",
+    counterfactual: "Grounded supersession evidence or a versioned predicate-specific source-authority policy would resolve the conflict.",
     traversal: "Entity → ASSERTS → Claim → HAS_OBSERVATION → SourceObject; Conflict → CONSIDERS → Claim",
-    ablation: { label: "Force a winner without a rule", result: "Would hide the 120s vs 180s disagreement behind a guessed default." },
+    ablation: { label: "Force a winner without a rule", result: `Would hide the ${values.join(" vs ")} disagreement behind a guessed answer.` },
     graphProof,
   };
 }

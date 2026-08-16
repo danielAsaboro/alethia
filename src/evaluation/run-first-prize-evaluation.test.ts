@@ -108,4 +108,20 @@ describe("generic judge evaluation separation", () => {
     expect(report.counts).toEqual({ attempted: 1, completed: 0, rejected: 0, failed: 1, unscored: 0 });
     expect(report.verdictAccuracy).toBe(0);
   });
+
+  it("extracts the first grounded duration from a resolved conflict answer", () => {
+    const result = frozenResult(
+      "handshake-ttl-conflict",
+      "conflict",
+      "SUPPORTED",
+      "Handshake tokens now default to TTL 120 seconds (was 180s) due to replay-risk hardening.",
+    );
+
+    const report = scoreFirstPrizeResultsV2([result], [label({
+      caseId: "handshake-ttl-conflict",
+      expectedFacts: [{ kind: "duration", value: 120, unit: "seconds" }],
+    })]);
+
+    expect(report.answerCorrectness).toBe(1);
+  });
 });

@@ -47,7 +47,7 @@ function repository(): HydraRepository {
   });
 }
 
-function graphForPromotion(promoted: Exclude<PromotedConflict, { status: "skipped" }>) {
+export function graphForPromotion(promoted: Exclude<PromotedConflict, { status: "skipped" }>) {
   return mapEvidenceSystemToGraph({
     claims: promoted.claims,
     observations: promoted.observations,
@@ -58,7 +58,7 @@ function graphForPromotion(promoted: Exclude<PromotedConflict, { status: "skippe
       payloadDigest: extraction.sourceDigest,
     })),
     conflicts: [promoted.conflict],
-    policies: [
+    policies: promoted.conflict.policyId ? [
       {
         id: promoted.policy.id,
         predicate: promoted.policy.predicate,
@@ -66,7 +66,7 @@ function graphForPromotion(promoted: Exclude<PromotedConflict, { status: "skippe
         priority: 100,
         rationale: "Grounded applied or approved state supersedes a proposal",
       },
-    ],
+    ] : [],
   });
 }
 
@@ -128,6 +128,14 @@ async function main(): Promise<void> {
         entityId: promoted.subjectEntityId,
         conflictId: promoted.conflict.id,
         winningValue: promoted.winningValue ?? null,
+        conflictDecision,
+        observationEvidenceCount: observationEvidence.length,
+        authorityPolicyNodeCount: graph.nodes.filter(
+          (node) => node.label === "AuthorityPolicy",
+        ).length,
+        decidedByEdgeCount: graph.edges.filter(
+          (edge) => edge.type === "DECIDED_BY",
+        ).length,
         presence,
       });
     }

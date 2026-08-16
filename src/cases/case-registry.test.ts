@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { listJudgeCases } from "./case-registry";
 
 describe("judge case registry", () => {
-  it("contains all eight runtime-safe enterprise truth lanes", () => {
+  it("contains the runtime-safe enterprise truth lanes including a distinct disputed case", () => {
     const cases = listJudgeCases();
-    expect(cases).toHaveLength(8);
+    expect(cases).toHaveLength(9);
     expect(cases.map((item) => item.id)).toEqual([
       "streamly-credit-conflict",
       "handshake-ttl-conflict",
+      "tool-signal-disputed",
       "owner-is-not-owner",
       "david-taylor-collision",
       "favorite-lunch-boundary",

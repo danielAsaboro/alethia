@@ -87,6 +87,30 @@ describe("runJudgeCase", () => {
     expect(workspace.decision.status).toBe("resolved");
   });
 
+  it("returns DISPUTED from the canonical equal-lifecycle tool-signal conflict", async () => {
+    const disputed = repository();
+    disputed.findObservationEvidence = async () => [
+      { claimLogicalId: "claim-left", observationLogicalId: "observation-left-old", sourceLogicalId: "source-left", predicate: "conflict_answer", object: { kind: "literal", value: "flag required" }, method: "qvac", extractorVersion: "qvac:v7", evidenceQuote: "The public flag is required.", sourceSystem: "github", sourceNativeId: "doc-left" },
+      { claimLogicalId: "claim-left", observationLogicalId: "observation-left-current", sourceLogicalId: "source-left", predicate: "conflict_answer", object: { kind: "literal", value: "flag required" }, method: "qvac", extractorVersion: "qvac:v17", evidenceQuote: "The public flag is required.", sourceSystem: "github", sourceNativeId: "doc-left" },
+      { claimLogicalId: "claim-right", observationLogicalId: "observation-right", sourceLogicalId: "source-right", predicate: "conflict_answer", object: { kind: "literal", value: "no public flag" }, method: "qvac", extractorVersion: "qvac:v17", evidenceQuote: "There is no public flag.", sourceSystem: "google_drive", sourceNativeId: "doc-right" },
+    ];
+    disputed.findConflictDecision = async () => ({
+      conflictId: "conflict_2687f02efba6edbe2d92be93",
+      resolution: "unresolved",
+      claimIds: ["claim-left", "claim-right"],
+      leftClaimId: "claim-left",
+      rightClaimId: "claim-right",
+    });
+
+    const workspace = await runJudgeCase("tool-signal-disputed", disputed);
+
+    expect(workspace.verdict).toBe("DISPUTED");
+    expect(workspace.evidence).toHaveLength(2);
+    expect(workspace.evidence.map((item) => item.value)).toEqual(["flag required", "no public flag"]);
+    expect(workspace.decision).toMatchObject({ status: "unresolved", policy: undefined });
+    expect(workspace.counterfactual).toMatch(/supersession|authority/i);
+  });
+
   it("fails closed when the observation path omits a claim considered by the conflict", async () => {
     const incomplete = repository();
     incomplete.findObservationEvidence = async () => [

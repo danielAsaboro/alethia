@@ -26,6 +26,18 @@
       }
     },
     {
+      "id": "tool-signal-disputed",
+      "question": "Do I need to set enable_tool_signal for tool-signal in the Responses v9 OpenAI-compat streaming bridge?",
+      "category": "conflict",
+      "execution": {
+        "title": "Refuse an unsupported winner",
+        "summary": "Retain two equally applied contradictory records when no authority rule distinguishes them.",
+        "dataset": "Enterprise RAG Bench",
+        "version": "qst_0429-v1",
+        "sourceSystems": ["github", "google_drive"]
+      }
+    },
+    {
       "id": "owner-is-not-owner",
       "question": "Does Google Drive owner mean the same relationship as HubSpot opportunity owner?",
       "category": "ontology_alignment",

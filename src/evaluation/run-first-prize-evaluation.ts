@@ -52,7 +52,7 @@ function numericFact(answer: string): EvaluationFact | undefined {
   const percentage = answer.trim().match(/^(-?\d+(?:\.\d+)?)%$/);
   if (percentage) return { kind: "percentage", value: Number(percentage[1]) };
 
-  const duration = answer.trim().match(/^(-?\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?)$/i);
+  const duration = answer.match(/(-?\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?)\b/i);
   if (duration) {
     const rawUnit = duration[2].toLocaleLowerCase();
     const unit = rawUnit.startsWith("ms") || rawUnit.startsWith("millisecond")
