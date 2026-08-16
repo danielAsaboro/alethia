@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -6,20 +7,26 @@ import { HydraRepository } from "@/hydra/client";
 import { mapIngestionToGraph } from "@/hydra/write-bundle";
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
+import {
+  evaluateIdentityDecisions,
+  identityPairId,
+  parseIdentityAuditLabels,
+} from "@/resolution/evaluate-identities";
 
-interface Args { input: string; output: string }
-const usage = "Usage: npm run audit:herb-identities -- --input <path> --output <path>";
+interface Args { input: string; labels: string; output: string }
+const usage = "Usage: npm run audit:herb-identities -- --input <path> --labels <labels.json> --output <path>";
 
 export function parseAuditHerbIdentityArgs(args: string[]): Args {
   const result: Partial<Args> = {};
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
     const value = args[index + 1];
-    if (!value || (flag !== "--input" && flag !== "--output")) throw new TypeError(usage);
+    if (!value || (flag !== "--input" && flag !== "--labels" && flag !== "--output")) throw new TypeError(usage);
     if (flag === "--input") result.input = value;
+    if (flag === "--labels") result.labels = value;
     if (flag === "--output") result.output = value;
   }
-  if (!result.input || !result.output) throw new TypeError(usage);
+  if (!result.input || !result.labels || !result.output) throw new TypeError(usage);
   return result as Args;
 }
 
@@ -35,6 +42,8 @@ function repository(): HydraRepository {
 
 async function main(): Promise<void> {
   const options = parseAuditHerbIdentityArgs(process.argv.slice(2));
+  const labelBytes = await readFile(path.resolve(options.labels), "utf8");
+  const labelArtifact = parseIdentityAuditLabels(JSON.parse(labelBytes));
   const ingestion = await runIngestion(new HerbAdapter(), options.input);
   if (ingestion.rejected.length > 0) throw new Error("HERB identity input contains rejected records");
   const accepted = ingestion.resolution.decisions.filter((decision) => decision.status === "accepted");
@@ -50,10 +59,34 @@ async function main(): Promise<void> {
   const negative = hardNegatives[0];
   if (!positive || !negative) throw new Error("HERB lacks required positive and hard-negative identity pairs");
   const graph = mapIngestionToGraph(ingestion);
+  const evaluation = evaluateIdentityDecisions(ingestion.resolution.decisions, labelArtifact.labels);
+  if (evaluation.unmatchedLabels > 0) {
+    throw new Error(`Identity audit has ${evaluation.unmatchedLabels} labels without a resolver decision`);
+  }
+  const activeByPair = new Map(
+    ingestion.resolution.decisions
+      .filter((decision) => decision.status !== "reversed")
+      .map((decision) => [identityPairId(...decision.candidateSourceObjectIds), decision]),
+  );
   const hydra = repository();
   try {
     await hydra.writeGraph(graph);
     await hydra.writeGraph(graph);
+    const auditedHydraDecisions = await Promise.all(labelArtifact.labels.map(async (label) => {
+      const decision = activeByPair.get(identityPairId(label.leftSourceObjectId, label.rightSourceObjectId));
+      if (!decision) throw new Error("Audited identity pair has no active decision");
+      const persisted = await hydra.findIdentityDecision(decision.id);
+      if (
+        !persisted ||
+        persisted.status !== decision.status ||
+        persisted.algorithmVersion !== decision.algorithmVersion ||
+        persisted.inputDigest !== decision.inputDigest ||
+        JSON.stringify(persisted.sourceObjectIds) !== JSON.stringify([...decision.candidateSourceObjectIds].sort())
+      ) {
+        throw new Error(`HydraDB identity decision is incomplete: ${decision.id}`);
+      }
+      return persisted;
+    }));
     const [positivePath, negativePath] = await Promise.all([
       hydra.findIdentityDecision(positive.id),
       hydra.findIdentityDecision(negative.id),
@@ -73,7 +106,7 @@ async function main(): Promise<void> {
       };
     });
     const artifact = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date().toISOString(),
       dataset: { name: "Salesforce HERB", license: "CC BY-NC 4.0; research-use limitations apply", records: ingestion.records.length },
       trial: {
@@ -81,6 +114,13 @@ async function main(): Promise<void> {
         sameNameCandidates: fuzzyCandidates.length,
         hardNegativePairs: hardNegatives.length,
         sourceTruceFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
+      },
+      audit: {
+        labelsSha256: createHash("sha256").update(labelBytes).digest("hex"),
+        datasetSha256: createHash("sha256").update(JSON.stringify(
+          ingestion.records.map((record) => ({ id: record.id, payloadDigest: record.payloadDigest })).sort((a, b) => a.id.localeCompare(b.id)),
+        )).digest("hex"),
+        evaluation,
       },
       ablations: {
         exactOnly: { mergedPairs: accepted.length },
@@ -95,6 +135,7 @@ async function main(): Promise<void> {
         implementation: "HydraDB OSS 0.1.0",
         traversal: "SourceObject->HAS_IDENTITY->Identity; ResolutionDecision->SUPPORTED_BY->ResolutionSignal; ResolutionDecision->BLOCKED_BY->ResolutionConstraint",
         idempotentWriteCount: 2,
+        auditedDecisionTraversals: auditedHydraDecisions,
         graph: { nodes: graph.nodes.length, edges: graph.edges.length },
       },
     };

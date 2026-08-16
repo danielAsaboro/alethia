@@ -182,6 +182,9 @@ export function mapIngestionToGraph(
     }
   }
 
+  const resolutionDecisionIds = new Set(
+    ingestion.resolution.decisions.map((decision) => decision.id),
+  );
   for (const decision of ingestion.resolution.decisions) {
     nodes.push({
       logicalId: decision.id,
@@ -190,6 +193,8 @@ export function mapIngestionToGraph(
         status: decision.status,
         confidence: decision.confidence,
         algorithmVersion: decision.algorithmVersion,
+        inputDigest: decision.inputDigest,
+        supersedesDecisionId: decision.supersedesDecisionId ?? "",
         signalsJson: JSON.stringify(decision.signals),
         constraintsJson: JSON.stringify(decision.constraints),
       },
@@ -252,6 +257,18 @@ export function mapIngestionToGraph(
           }),
         );
       }
+    }
+    if (decision.supersedesDecisionId) {
+      if (!resolutionDecisionIds.has(decision.supersedesDecisionId)) {
+        throw new TypeError(`Resolution reversal target is missing: ${decision.supersedesDecisionId}`);
+      }
+      edges.push(edge({
+        type: "SUPERSEDES",
+        sourceLabel: "ResolutionDecision",
+        sourceLogicalId: decision.id,
+        targetLabel: "ResolutionDecision",
+        targetLogicalId: decision.supersedesDecisionId,
+      }));
     }
   }
 

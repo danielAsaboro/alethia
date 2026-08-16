@@ -55,6 +55,7 @@ describe("resolveEntities", () => {
       constraints: ["same_identity_namespace"],
       confidence: 1,
       algorithmVersion: "resolver-v2",
+      inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
   });
 
@@ -159,6 +160,7 @@ describe("resolveEntities", () => {
       supersedesDecisionId: original.decisions[0].id,
       candidateSourceObjectIds: ["source_a", "source_b"],
       algorithmVersion: "resolver-v2",
+      inputDigest: original.decisions[0].inputDigest,
     });
   });
 });

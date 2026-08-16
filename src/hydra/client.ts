@@ -159,6 +159,9 @@ export interface GraphIdentityDecision {
   sourceObjectIds: string[];
   signalKinds: string[];
   constraintKinds: string[];
+  algorithmVersion?: string;
+  inputDigest?: string;
+  supersedesDecisionId?: string;
 }
 
 interface HydraValue {
@@ -1089,7 +1092,7 @@ export class HydraRepository {
     decisionLogicalId: string,
   ): Promise<GraphIdentityDecision | null> {
     const decisionId = hydraIntId(decisionLogicalId);
-    const [sourceRows, signalRows, constraintRows] = await Promise.all([
+    const [sourceRows, signalRows, constraintRows, supersedesRows] = await Promise.all([
       this.query(
         "MATCH (d:ResolutionDecision {id: $decisionId})-[:CONSIDERS]->(s:SourceObject) RETURN d.logical_id AS decision, d.payload_json AS payload, s.logical_id AS source",
         { decisionId },
@@ -1102,6 +1105,10 @@ export class HydraRepository {
         "MATCH (d:ResolutionDecision {id: $decisionId})-[:BLOCKED_BY]->(c:ResolutionConstraint) RETURN c.payload_json AS payload",
         { decisionId },
       ),
+      this.query(
+        "MATCH (d:ResolutionDecision {id: $decisionId})-[:SUPERSEDES]->(p:ResolutionDecision) RETURN p.logical_id AS supersedesDecisionId",
+        { decisionId },
+      ),
     ]);
     if (sourceRows.length === 0) return null;
     const decisionPayload = JSON.parse(String(sourceRows[0].payload)) as Record<string, unknown>;
@@ -1111,6 +1118,15 @@ export class HydraRepository {
       sourceObjectIds: sourceRows.map((row) => String(row.source)).sort(),
       signalKinds: signalRows.map((row) => String((JSON.parse(String(row.payload)) as Record<string, unknown>).kind)).sort(),
       constraintKinds: constraintRows.map((row) => String((JSON.parse(String(row.payload)) as Record<string, unknown>).kind)).sort(),
+      ...(typeof decisionPayload.algorithmVersion === "string"
+        ? { algorithmVersion: decisionPayload.algorithmVersion }
+        : {}),
+      ...(typeof decisionPayload.inputDigest === "string"
+        ? { inputDigest: decisionPayload.inputDigest }
+        : {}),
+      ...(typeof supersedesRows[0]?.supersedesDecisionId === "string"
+        ? { supersedesDecisionId: supersedesRows[0].supersedesDecisionId }
+        : {}),
     };
   }
 

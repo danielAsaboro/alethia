@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
+import { reverseResolution } from "@/resolution/resolve-entities";
 import { mapIngestionToGraph } from "./write-bundle";
 
 describe("mapIngestionToGraph", () => {
@@ -19,6 +20,11 @@ describe("mapIngestionToGraph", () => {
     expect(
       graph.nodes.filter((node) => node.label === "ResolutionDecision"),
     ).toHaveLength(1645);
+    expect(
+      graph.nodes
+        .filter((node) => node.label === "ResolutionDecision")
+        .every((node) => typeof node.properties.inputDigest === "string" && /^[a-f0-9]{64}$/.test(node.properties.inputDigest)),
+    ).toBe(true);
     expect(
       graph.edges.filter((edge) => edge.type === "ASSERTS"),
     ).toHaveLength(5130);
@@ -43,5 +49,15 @@ describe("mapIngestionToGraph", () => {
     expect(
       graph.edges.filter((edge) => edge.type === "MANAGES"),
     ).toHaveLength(512);
+
+    const accepted = ingestion.resolution.decisions.find((decision) => decision.status === "accepted");
+    if (!accepted) throw new Error("Expected an accepted HERB identity decision");
+    const reversed = reverseResolution(ingestion.records, ingestion.resolution, accepted.id);
+    const reversalGraph = mapIngestionToGraph({ ...ingestion, resolution: reversed });
+    expect(reversalGraph.edges).toContainEqual(expect.objectContaining({
+      type: "SUPERSEDES",
+      sourceLogicalId: reversed.decisions.at(-1)?.id,
+      targetLogicalId: accepted.id,
+    }));
   });
 });

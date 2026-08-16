@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { stableId } from "@/domain/ids";
 import type {
   IdentityObservation,
@@ -20,6 +22,7 @@ export interface ResolutionDecision {
   constraints: string[];
   confidence: number;
   algorithmVersion: "resolver-v2";
+  inputDigest: string;
   supersedesDecisionId?: string;
 }
 
@@ -46,6 +49,18 @@ function values(identities: IdentityObservation[], kind: IdentityObservation["ki
 
 function firstOverlap(left: Set<string>, right: Set<string>): string | undefined {
   return [...left].find((value) => right.has(value));
+}
+
+function resolutionInputDigest(
+  left: NormalizedSourceObject,
+  right: NormalizedSourceObject,
+): string {
+  const inputs = [left, right]
+    .map((item) => ({ id: item.id, payloadDigest: item.payloadDigest }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return createHash("sha256")
+    .update(JSON.stringify({ algorithmVersion: "resolver-v2", inputs }))
+    .digest("hex");
 }
 
 function assessCandidate(
@@ -96,6 +111,7 @@ function assessCandidate(
       : ["verified_account_link"],
     confidence: scored.status === "pending" ? 0.35 : scored.score,
     algorithmVersion: "resolver-v2",
+    inputDigest: resolutionInputDigest(left, right),
   };
 }
 
@@ -239,6 +255,7 @@ export function reverseResolution(
     constraints: [...target.constraints, "explicit_reversal"],
     confidence: target.confidence,
     algorithmVersion: "resolver-v2",
+    inputDigest: target.inputDigest,
     supersedesDecisionId: target.id,
   };
   const decisions = [...bundle.decisions, reversal];
