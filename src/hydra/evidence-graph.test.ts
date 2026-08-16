@@ -197,6 +197,16 @@ describe("mapEvidenceSystemToGraph", () => {
         }),
       ]),
     );
+    expect(
+      graph.edges.filter(
+        (edge) => edge.type === "CONSIDERS" && edge.targetLogicalId === sourceTerm.id,
+      ),
+    ).toHaveLength(2);
+    expect(
+      graph.nodes
+        .filter((node) => node.label === "AlignmentDecision")
+        .every((node) => typeof node.properties.inputDigest === "string" && /^[a-f0-9]{64}$/.test(node.properties.inputDigest)),
+    ).toBe(true);
   });
 
   it("maps explicit source-version lineage without guessing recency", () => {

@@ -1,26 +1,28 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { buildAlignmentAudit, type AlignmentObservationSpec } from "@/alignment/build-audit";
+import { evaluateAlignmentDecisions, parseAlignmentAuditLabels } from "@/alignment/evaluate-alignments";
 import { HydraRepository } from "@/hydra/client";
 import { mapEvidenceSystemToGraph } from "@/hydra/evidence-graph";
 import { ErbAdapter } from "@/ingestion/erb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
 
-interface Args { input: string; manifest: string; output: string }
-const usage = "Usage: npm run discover:erb-alignment -- --input <path> --manifest <path> --output <path>";
+interface Args { input: string; manifest: string; labels: string; output: string }
+const usage = "Usage: npm run discover:erb-alignment -- --input <path> --manifest <path> --labels <path> --output <path>";
 
 export function parseDiscoverAlignmentArgs(args: string[]): Args {
   const values: Partial<Args> = {};
-  const flags: Record<string, keyof Args> = { "--input": "input", "--manifest": "manifest", "--output": "output" };
+  const flags: Record<string, keyof Args> = { "--input": "input", "--manifest": "manifest", "--labels": "labels", "--output": "output" };
   for (let index = 0; index < args.length; index += 2) {
     const key = flags[args[index]];
     const value = args[index + 1];
     if (!key || !value) throw new TypeError(usage);
     values[key] = value;
   }
-  if (!values.input || !values.manifest || !values.output) throw new TypeError(usage);
+  if (!values.input || !values.manifest || !values.labels || !values.output) throw new TypeError(usage);
   return values as Args;
 }
 
@@ -51,6 +53,10 @@ async function main(): Promise<void> {
     throw new Error("Alignment acquisition manifest is incomplete");
   }
   const audit = buildAlignmentAudit(ingestion.records, manifest.alignmentObservations);
+  // Labels are deliberately loaded only after the runtime audit decisions exist.
+  const rawLabels = await readFile(path.resolve(options.labels), "utf8");
+  const labels = parseAlignmentAuditLabels(JSON.parse(rawLabels));
+  const evaluation = evaluateAlignmentDecisions(audit.decisions, labels);
   const graph = mapEvidenceSystemToGraph({
     claims: [], observations: [], conflicts: [], policies: [],
     sources: ingestion.records.map((record) => ({
@@ -77,19 +83,33 @@ async function main(): Promise<void> {
     if (Object.values(traversals).some((rows) => rows.length !== 2)) {
       throw new Error("HydraDB alignment decision traversal is incomplete");
     }
+    const liveDecisions = new Map(Object.values(traversals).flat().map((decision) => [decision.decisionId, decision]));
+    for (const label of labels) {
+      const decision = audit.decisions.find((item) => item.sourceTermId === label.sourceTermId && item.candidateOntologyTermId === label.candidateOntologyTermId);
+      const live = decision ? liveDecisions.get(decision.id) : undefined;
+      if (!decision || !live || live.status !== decision.status || live.inputDigest !== decision.inputDigest) {
+        throw new Error(`HydraDB audited alignment decision is incomplete: ${label.sourceTermId}`);
+      }
+    }
     const artifact = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date().toISOString(),
       dataset: { url: manifest.datasetUrl, inputSha256: manifest.outputSha256, records: ingestion.records.length },
       leakageFirewall: "Acquisition exports source schema observations and document IDs only; evaluation labels are absent.",
+      labels: {
+        sha256: createHash("sha256").update(rawLabels).digest("hex"),
+        auditedMappings: labels.length,
+        loadedAfterRuntimeDecisions: true,
+      },
       sourceTerms: audit.sourceTerms,
       ontologyTerms: audit.ontologyTerms,
       rules: audit.rules,
       decisions: audit.decisions,
       baseline: audit.baseline,
+      evaluation,
       hydra: {
         implementation: "HydraDB OSS 0.1.0",
-        traversal: "SourceObject->OBSERVED_AS->SourceSchemaTerm->MAPS_TO->OntologyTerm; AlignmentDecision->REJECTED_MAPPING->OntologyTerm",
+        traversal: "SourceObject->OBSERVED_AS->SourceSchemaTerm; AlignmentDecision->CONSIDERS->SourceSchemaTerm and OntologyTerm; SourceSchemaTerm->MAPS_TO->OntologyTerm; AlignmentDecision->REJECTED_MAPPING->OntologyTerm",
         idempotentWriteCount: 2,
         presence,
         traversals,
@@ -98,7 +118,7 @@ async function main(): Promise<void> {
     const output = path.resolve(options.output);
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    console.log(JSON.stringify({ output, sourceTerms: audit.sourceTerms.length, accepted, rejected, presence }));
+    console.log(JSON.stringify({ output, sourceTerms: audit.sourceTerms.length, accepted, rejected, accuracy: evaluation.accuracy, presence }));
   } finally {
     await hydra.close();
   }

@@ -347,9 +347,17 @@ export function mapEvidenceSystemToGraph(
           evidenceObservationIdsJson: JSON.stringify(
             decision.evidenceObservationIds,
           ),
+          inputDigest: decision.inputDigest,
         },
       });
       edges.push(
+        edge({
+          type: "CONSIDERS",
+          sourceLabel: "AlignmentDecision",
+          sourceLogicalId: decision.id,
+          targetLabel: "SourceSchemaTerm",
+          targetLogicalId: decision.sourceTermId,
+        }),
         edge({
           type: "CONSIDERS",
           sourceLabel: "AlignmentDecision",

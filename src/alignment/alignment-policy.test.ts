@@ -42,6 +42,7 @@ describe("decideAlignment", () => {
       status: "accepted",
       policyVersion: "alignment-registry-v1",
       evidenceObservationIds: ["observation_drive_owner"],
+      inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
   });
 
@@ -60,7 +61,7 @@ describe("decideAlignment", () => {
         },
         [driveRule],
       ),
-    ).toMatchObject({ status: "rejected", reason: "domain_range_mismatch" });
+    ).toMatchObject({ status: "rejected", reason: "domain_range_mismatch", inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/) });
   });
 
   it("leaves an unseen ambiguous phrase pending", () => {

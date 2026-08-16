@@ -151,6 +151,11 @@ export interface GraphAlignmentDecision {
   ontologyTermName: string;
   relationship: "MAPS_TO" | "REJECTED_MAPPING";
   reason: string;
+  evidenceObservationIds?: string[];
+  constraints?: string[];
+  policyId?: string;
+  policyVersion?: string;
+  inputDigest?: string;
 }
 
 export interface GraphIdentityDecision {
@@ -1047,7 +1052,7 @@ export class HydraRepository {
     sourceTermLogicalId: string,
   ): Promise<GraphAlignmentDecision[]> {
     const sourceTermId = hydraIntId(sourceTermLogicalId);
-    const [acceptedRows, decisionRows] = await Promise.all([
+    const [acceptedRows, decisionRows, metadataRows] = await Promise.all([
       this.query(
         "MATCH (s:SourceSchemaTerm {id: $sourceTermId})-[r:MAPS_TO]->(o:OntologyTerm) RETURN r.payload_json AS edgePayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
         { sourceTermId },
@@ -1055,18 +1060,34 @@ export class HydraRepository {
       this.query(
         "MATCH (d:AlignmentDecision)-[r:REJECTED_MAPPING]->(o:OntologyTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
       ),
+      this.query(
+        "MATCH (d:AlignmentDecision)-[:CONSIDERS]->(s:SourceSchemaTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, s.logical_id AS sourceTerm",
+      ),
     ]);
+    const metadata = new Map(metadataRows.map((row) => [String(row.decision), JSON.parse(String(row.decisionPayload)) as Record<string, unknown>]));
+    const provenance = (decisionId: string) => {
+      const payload = metadata.get(decisionId) ?? {};
+      return {
+        evidenceObservationIds: JSON.parse(String(payload.evidenceObservationIdsJson ?? "[]")) as string[],
+        constraints: JSON.parse(String(payload.constraintsJson ?? "[]")) as string[],
+        policyId: payload.policyId ? String(payload.policyId) : undefined,
+        policyVersion: payload.policyVersion ? String(payload.policyVersion) : undefined,
+        inputDigest: payload.inputDigest ? String(payload.inputDigest) : undefined,
+      };
+    };
     const accepted = acceptedRows.map((row): GraphAlignmentDecision => {
       const edgePayload = JSON.parse(String(row.edgePayload)) as Record<string, unknown>;
       const ontologyPayload = JSON.parse(String(row.ontologyPayload)) as Record<string, unknown>;
+      const decisionId = String(edgePayload.decisionId);
       return {
-        decisionId: String(edgePayload.decisionId),
+        decisionId,
         status: "accepted",
         sourceTermId: sourceTermLogicalId,
         ontologyTermId: String(row.ontology),
         ontologyTermName: String(ontologyPayload.name),
         relationship: "MAPS_TO",
         reason: "exact_registry_rule",
+        ...provenance(decisionId),
       };
     });
     const rejected = decisionRows.flatMap((row): GraphAlignmentDecision[] => {
@@ -1081,6 +1102,7 @@ export class HydraRepository {
         ontologyTermName: String(ontologyPayload.name),
         relationship: "REJECTED_MAPPING",
         reason: String(payload.reason),
+        ...provenance(String(row.decision)),
       }];
     });
     return [...accepted, ...rejected].sort((left, right) =>

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { stableId } from "@/domain/ids";
 import type { SourceSchemaTerm } from "./source-terms";
 
@@ -26,6 +28,7 @@ export interface AlignmentDecision {
   candidateOntologyTermId: string;
   evidenceObservationIds: string[];
   constraints: string[];
+  inputDigest: string;
   policyId?: string;
   policyVersion?: string;
   status: "accepted" | "rejected" | "pending";
@@ -60,10 +63,20 @@ export function decideAlignment(
     policyId: rule?.id ?? null,
     policyVersion: rule?.version ?? null,
   };
+  const inputDigest = createHash("sha256")
+    .update(JSON.stringify({
+      term: input.term,
+      candidate: input.candidate,
+      evidenceObservationIds: identity.evidenceObservationIds,
+      rule: rule ?? null,
+      algorithmVersion: "alignment-policy-v1",
+    }))
+    .digest("hex");
   if (!rule) {
     return {
       id: stableId("alignment_decision", { ...decisionKey, status: "pending" }),
       ...identity,
+      inputDigest,
       constraints: ["exact_registry_rule_required"],
       status: "pending",
       reason: "no_exact_registry_rule",
@@ -77,6 +90,7 @@ export function decideAlignment(
     return {
       id: stableId("alignment_decision", { ...decisionKey, status: "rejected" }),
       ...identity,
+      inputDigest,
       policyId: rule.id,
       policyVersion: rule.version,
       constraints: [
@@ -91,6 +105,7 @@ export function decideAlignment(
   return {
     id: stableId("alignment_decision", { ...decisionKey, status: "accepted" }),
     ...identity,
+    inputDigest,
     policyId: rule.id,
     policyVersion: rule.version,
     constraints: ["source_context_exact", "domain_range_compatible"],
