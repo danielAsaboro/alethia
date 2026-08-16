@@ -97,7 +97,7 @@ describe("runErbConflictEvaluation", () => {
     expect(writes.get("answers.jsonl")?.trim()).toBe(
       JSON.stringify({
         question_id: "qst_0411",
-        answer: "Grounded answer: new.",
+        answer: runtime.cases[0]?.answer,
         document_ids: ["d1", "d2"],
       }),
     );

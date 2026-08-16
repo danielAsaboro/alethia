@@ -458,14 +458,8 @@ export function freezeConflictRuntime(input: {
             typeof quote === "string" && quote.trim().length > 0,
         )
         .map((quote) => quote.trim());
-      const otherQuotes = groundedQuotes.filter(
-        (quote) => !winningQuotes.includes(quote),
-      );
       const conciseWinningQuotes = winningQuotes.map((quote) =>
         boundedEvidenceExcerpt(manifestCase.question, quote),
-      );
-      const conciseOtherQuotes = otherQuotes.map((quote) =>
-        boundedEvidenceExcerpt(manifestCase.question, quote, 900),
       );
       const winningValueIsQuote = winningQuotes.some(
         (quote) => quote.trim() === promotion.winningValue.trim(),
@@ -480,8 +474,8 @@ export function freezeConflictRuntime(input: {
         conciseWinningQuotes.length
           ? `Controlling evidence: ${conciseWinningQuotes.join(" ")}`
           : "",
-        conciseOtherQuotes.length
-          ? `Superseded or conflicting evidence retained for audit only. Earlier/outdated or otherwise non-controlling value—not the current answer: ${nonControllingValues.join(" or ")}. Supporting audit excerpt: ${conciseOtherQuotes.join(" ")}`
+        nonControllingValues.length
+          ? `Superseded or conflicting evidence is retained in the evidence graph for audit. Earlier/outdated or otherwise non-controlling value—not the current answer: ${nonControllingValues.join(" or ")}.`
           : "",
       ]
         .filter(Boolean)

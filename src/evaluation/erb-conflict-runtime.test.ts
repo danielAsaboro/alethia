@@ -176,13 +176,16 @@ describe("label-free ERB conflict runtime", () => {
     expect(first.cases.find((item) => item.questionId === "qst_0413")).toMatchObject({
       status: "completed",
       verdict: "DISPUTED",
-      answer: expect.stringMatching(/new value[\s\S]*Updated current setting[\s\S]*Previous setting/),
+      answer: expect.stringMatching(/new value[\s\S]*Updated current setting/),
     });
     expect(first.cases.find((item) => item.questionId === "qst_0411")?.answer).toMatch(
       /not the current answer/i,
     );
     expect(first.cases.find((item) => item.questionId === "qst_0411")?.answer).toMatch(
       /Earlier\/outdated[^:]*: old value/i,
+    );
+    expect(first.cases.find((item) => item.questionId === "qst_0411")?.answer).not.toMatch(
+      /Previous setting/i,
     );
     expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.digest).toBe(reordered.digest);
