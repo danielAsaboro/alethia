@@ -27,7 +27,11 @@ export function parseQvacTelemetry(input: {
       backend: match[7] === "gpu" ? "gpu" : "cpu",
     });
   }
-  const offloaded = [...input.log.matchAll(/(?:offloaded[_ -]?layers|layers[_ -]?offloaded)=(\d+)/gi)].at(-1)?.[1];
+  const offloaded = [
+    ...input.log.matchAll(
+      /(?:offloaded[_ -]?layers|layers[_ -]?offloaded)=(\d+)|offloaded\s+(\d+)\/\d+\s+layers\s+to\s+GPU/gi,
+    ),
+  ].at(-1);
   const peakMemory = [...input.log.matchAll(/peak[_ -]?memory(?:_mb)?=([\d.]+)/gi)].at(-1)?.[1];
   const observedBackend = requests.at(-1)?.backend ?? (/backend=gpu/.test(input.log) ? "gpu" : /backend=cpu/.test(input.log) ? "cpu" : "unknown");
   return {
@@ -35,7 +39,9 @@ export function parseQvacTelemetry(input: {
     observedBackends: [...new Set(requests.map((item) => item.backend))],
     contextSize: Number.isSafeInteger(input.config.ctx_size) ? Number(input.config.ctx_size) : null,
     layersRequested: Number.isSafeInteger(input.config.gpu_layers) ? Number(input.config.gpu_layers) : null,
-    layersOffloaded: offloaded === undefined ? null : Number(offloaded),
+    layersOffloaded: offloaded === undefined
+      ? null
+      : Number(offloaded[1] ?? offloaded[2]),
     peakMemoryMb: peakMemory === undefined ? null : Number(peakMemory),
     requests,
   };

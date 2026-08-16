@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { validateQvacExtraction } from "./extraction";
-import { mapQvacClaimToGraph } from "./client";
+import {
+  mapQvacClaimToGraph,
+  qvacExtractionLimits,
+  qvacRequestTimeoutMs,
+} from "./client";
 
 describe("validateQvacExtraction", () => {
   it("accepts fenced JSON only when predicates and quotes are grounded", () => {
@@ -64,5 +68,24 @@ describe("mapQvacClaimToGraph", () => {
       "ASSERTS",
       "SUPPORTED_BY",
     ]);
+  });
+});
+
+describe("qvacRequestTimeoutMs", () => {
+  it("allows a bounded long-context timeout override", () => {
+    expect(qvacRequestTimeoutMs("600000")).toBe(600_000);
+    expect(() => qvacRequestTimeoutMs("0")).toThrow(/QVAC_REQUEST_TIMEOUT_MS/);
+    expect(() => qvacRequestTimeoutMs("unbounded")).toThrow(/QVAC_REQUEST_TIMEOUT_MS/);
+  });
+});
+
+describe("qvacExtractionLimits", () => {
+  it("creates a bounded single-claim verifier contract", () => {
+    expect(qvacExtractionLimits(1)).toEqual({
+      maxClaims: 1,
+      maxOutputTokens: 180,
+      directive: "Return at most 1 claim. Ignore all other facts.",
+    });
+    expect(() => qvacExtractionLimits(0)).toThrow(/maxClaims/);
   });
 });

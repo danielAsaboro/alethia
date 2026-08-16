@@ -14,6 +14,13 @@ describe("QVAC telemetry", () => {
     expect(parseQvacTelemetry({ log: "completion done tokens=4 ttft=100 tps=3 prompt=10 cache=12 gen=4 backend=cpu", config: { ctx_size: 16384, gpu_layers: 99 } })).toMatchObject({ backend: "cpu", layersRequested: 99, layersOffloaded: null });
   });
 
+  it("parses native llama.cpp layer offload telemetry", () => {
+    expect(parseQvacTelemetry({
+      log: "print_backend_buffers_info: offloaded 66/66 layers to GPU\ncompletion done tokens=1 ttft=440 tps=6.8 prompt=16 cache=28 gen=1 backend=gpu",
+      config: { ctx_size: 16384, gpu_layers: 99 },
+    })).toMatchObject({ backend: "gpu", layersRequested: 99, layersOffloaded: 66 });
+  });
+
   it("rejects truncated JSON and accepts an exact quote near the source boundary", () => {
     expect(recordGroundingValidation({ responseText: '{"claims":[', sourceText: "source", allowedPredicates: ["fact"], latencyMs: 1 })).toMatchObject({ status: "rejected", reason: "malformed_output" });
     const quote = "BOUNDARY EXACT QUOTE";

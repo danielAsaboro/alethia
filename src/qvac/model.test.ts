@@ -61,12 +61,19 @@ describe("qvacRuntimeModel", () => {
       preload: true,
       config: {
         device: "gpu",
-        "main-gpu": "integrated",
         gpu_layers: 99,
         ctx_size: 16384,
         reasoning_budget: 0,
         tools: false,
+        verbosity: 2,
       },
     });
+
+    expect(config.serve.models[QVAC_MODEL_ALIAS]?.config).not.toHaveProperty(
+      "main-gpu",
+    );
+    expect(readFileSync(path.resolve("scripts/qvac-serve.sh"), "utf8")).toContain(
+      "--verbose",
+    );
   });
 });

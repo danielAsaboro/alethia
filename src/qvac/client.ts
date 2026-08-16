@@ -13,6 +13,34 @@ import { validateQvacExtraction } from "./extraction";
 
 export const GROUNDED_CLAIMS_PROMPT_VERSION = "grounded-claims-v1";
 
+export function qvacRequestTimeoutMs(
+  raw = process.env.QVAC_REQUEST_TIMEOUT_MS,
+): number {
+  if (raw === undefined) return 120_000;
+  const timeout = Number(raw);
+  if (!Number.isSafeInteger(timeout) || timeout < 1_000 || timeout > 1_800_000) {
+    throw new TypeError(
+      "QVAC_REQUEST_TIMEOUT_MS must be an integer from 1000 through 1800000",
+    );
+  }
+  return timeout;
+}
+
+export function qvacExtractionLimits(maxClaims = 8): {
+  maxClaims: number;
+  maxOutputTokens: number;
+  directive: string;
+} {
+  if (!Number.isSafeInteger(maxClaims) || maxClaims < 1 || maxClaims > 16) {
+    throw new TypeError("maxClaims must be an integer from 1 through 16");
+  }
+  return {
+    maxClaims,
+    maxOutputTokens: maxClaims === 1 ? 180 : 500,
+    directive: `Return at most ${maxClaims} ${maxClaims === 1 ? "claim" : "claims"}. Ignore all other facts.`,
+  };
+}
+
 export interface QvacPredicate {
   predicate: string;
   description: string;
@@ -24,6 +52,7 @@ export interface QvacExtractionInput {
   sourceSystem: string;
   sourceText: string;
   predicates: QvacPredicate[];
+  maxClaims?: number;
 }
 
 export interface QvacExtractionResult {
@@ -131,13 +160,14 @@ export class QvacClient {
       baseURL: this.baseUrl.replace(/\/$/, ""),
       apiKey: process.env.QVAC_API_KEY ?? "local-loopback-only",
     });
+    const limits = qvacExtractionLimits(input.maxClaims);
     const { text: responseText } = await generateText({
       model: qvac(this.model),
-      abortSignal: AbortSignal.timeout(120_000),
+      abortSignal: AbortSignal.timeout(qvacRequestTimeoutMs()),
       temperature: 0,
-      maxOutputTokens: 500,
+      maxOutputTokens: limits.maxOutputTokens,
       system:
-        "Extract only explicit facts from the source text. Return JSON only: {\"claims\":[{\"predicate\":\"one allowed predicate\",\"value\":\"exact value\",\"evidenceQuote\":\"exact contiguous quote from source\"}]}. Do not infer. Return {\"claims\":[]} when no allowed fact is explicit.",
+        `Extract only explicit facts from the source text. ${limits.directive} Return JSON only: {\"claims\":[{\"predicate\":\"one allowed predicate\",\"value\":\"exact value\",\"evidenceQuote\":\"exact contiguous quote from source\"}]}. Do not infer. Return {\"claims\":[]} when no allowed fact is explicit.`,
       prompt: JSON.stringify({
         allowedPredicates: input.predicates,
         sourceText: input.sourceText,
@@ -150,6 +180,11 @@ export class QvacClient {
         sourceText: input.sourceText,
         allowedPredicates: input.predicates.map((item) => item.predicate),
       });
+      if (extracted.length > limits.maxClaims) {
+        throw new TypeError(
+          `QVAC extraction exceeded maxClaims=${limits.maxClaims}`,
+        );
+      }
     } catch (error) {
       throw new QvacExtractionError(error instanceof Error ? error.message : String(error), responseText);
     }
@@ -196,7 +231,7 @@ export class QvacClient {
     }
     const { text: responseText } = await generateText({
       model: qvac(this.model),
-      abortSignal: AbortSignal.timeout(120_000),
+      abortSignal: AbortSignal.timeout(qvacRequestTimeoutMs()),
       temperature: 0,
       maxOutputTokens: 180,
       system:

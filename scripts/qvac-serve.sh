@@ -11,6 +11,7 @@ export SNAP_USER_COMMON="$runtime_home"
 cd "$project_root"
 
 exec "$project_root/node_modules/.bin/qvac" serve openai \
+  --verbose \
   --config "$runtime_config" \
   --port 11436 \
   --host 127.0.0.1 \
