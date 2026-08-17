@@ -5,9 +5,10 @@ export function CasePicker({ cases, selectedId, onRun, loading }: { cases: Judge
     <section className="case-panel">
       <div className="section-heading"><span>01</span><div><p className="eyebrow">Real judge cases</p><h2>Choose the cross-examination</h2></div></div>
       <div className="case-list">
+        {cases.length === 0 && <div className="case-list-empty" role="status">No judge cases are configured.</div>}
         {cases.map((item, index) => (
-          <button key={item.id} type="button" className={`case-card ${selectedId === item.id ? "selected" : ""}`} onClick={() => onRun(item)} disabled={loading}>
-            <span className="case-index">0{index + 1}</span>
+          <button key={item.id} type="button" className={`case-card ${selectedId === item.id ? "selected" : ""}`} onClick={() => onRun(item)} disabled={loading} aria-pressed={selectedId === item.id} aria-busy={loading && selectedId === item.id}>
+            <span className="case-index">{String(index + 1).padStart(2, "0")}</span>
             <span className="case-copy"><strong>{item.title}</strong><small>{item.summary}</small><em>{item.dataset}</em></span>
             <span className="case-arrow">↗</span>
           </button>

@@ -28,7 +28,7 @@ export default function Home() {
     <main className="shell">
       <header className="topbar">
         <a className="brand" href="#top"><span className="brand-mark">ST</span><span>SourceTruce</span></a>
-        <div className="system-state"><span className="pulse" />HydraDB + local QVAC</div>
+        <div className="system-state"><span className="pulse" />HydraDB judge path · local QVAC extraction</div>
       </header>
       <section className="hero court-hero" id="top">
         <div>

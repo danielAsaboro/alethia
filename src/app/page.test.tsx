@@ -21,6 +21,9 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain("Retrieve a canonical fact");
     expect(html).toContain("Traverse a product team");
     expect(html).toContain("Prove a fact is not found");
+    expect(html).toContain('class="case-index">10</span>');
+    expect(html).toContain('class="case-index">11</span>');
+    expect(html).not.toContain('class="case-index">010</span>');
     expect(html).toContain("what would change it");
     expect(html).toContain("Fail closed");
     expect(html).not.toContain("Canonical entity ID");
@@ -67,5 +70,34 @@ describe("SourceTruce evidence court", () => {
     expect(visibleText).toContain("1 round trip");
     expect(html).toContain("sourcetruce-read-test");
     expect(html).toContain("claim_30 → source_policy");
+  });
+
+  it("renders disputed evidence, resolution requirements, abstention, loading, and actionable errors", () => {
+    const selected = listJudgeCases()[0]!;
+    const proof = {
+      operation: "algo.SPpaths" as const,
+      consistency: "strong" as const,
+      queryId: "sourcetruce-read-state-test",
+      readEpoch: 42,
+      bookmark: "sgk:state:42",
+      latencyMs: 2,
+      roundTrips: 1 as const,
+      pathLength: 2,
+      path: "entity → claim → source",
+      relationshipTypes: ["ASSERTS", "SUPPORTED_BY"],
+    };
+    const disputed = renderToStaticMarkup(<EvidenceWorkspace selected={selected} status="idle" error="" workspace={{ verdict: "DISPUTED", answer: "Two controlling records disagree.", evidence: [{ source: "jira · native-1", quote: "30%", value: "30%" }, { source: "drive · native-2", quote: "45%", value: "45%" }], decision: { status: "unresolved", reason: "No controlling policy exists." }, coverage: { sufficient: true, detail: "Both records are present." }, counterfactual: "A signed authority policy would resolve this.", traversal: "Entity → Claim → SourceObject", ablation: { label: "No conflict policy", result: "Remains DISPUTED" }, graphProof: proof }} />);
+    const unknown = renderToStaticMarkup(<EvidenceWorkspace selected={selected} status="idle" error="" workspace={{ verdict: "UNKNOWN", answer: "Available evidence is insufficient.", evidence: [], decision: { status: "abstained", reason: "Coverage is incomplete." }, coverage: { sufficient: false, detail: "One source family is missing." }, counterfactual: "Ingest the missing source family.", traversal: "CoverageSlice", ablation: { label: "No coverage gate", result: "Would incorrectly return NOT_FOUND" }, graphProof: { ...proof, pathLength: 1, path: "entity → coverage", relationshipTypes: ["COVERS"] } }} />);
+    const loading = renderToStaticMarkup(<EvidenceWorkspace selected={selected} status="loading" error="" workspace={null} />);
+    const error = renderToStaticMarkup(<EvidenceWorkspace selected={selected} status="error" error="HydraDB query failed" workspace={null} />);
+
+    expect(disputed).toContain("DISPUTED");
+    expect(disputed).toContain("jira · native-1");
+    expect(disputed).toContain("What would change this?");
+    expect(unknown).toContain("UNKNOWN");
+    expect(unknown).toContain("No claim evidence exists");
+    expect(loading).toContain('role="status"');
+    expect(error).toContain('role="alert"');
+    expect(error).toContain("Check HydraDB availability and retry the case");
   });
 });

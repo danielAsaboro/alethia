@@ -78,6 +78,8 @@ button:disabled { cursor: wait; opacity: .65; transform: none; }
 .loader { animation: spin 1s linear infinite; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 99px; height: 2rem; width: 2rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .error-state { background: #fff3ee; border: 1px solid var(--orange); min-height: 20rem; padding: 2rem; }
+.error-state .error-action { border-top: 1px solid rgba(161,58,27,.25); color: var(--ink); margin-top: .5rem; padding-top: 1rem; }
+.case-list-empty { border: 1px dashed var(--muted); color: var(--muted); font-size: .8rem; padding: 1rem; }
 .dossier-verdict { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }
 .dossier-verdict p { color: var(--muted); font-size: .8rem; margin: 0; text-align: right; }
 .verdict-badge { border: 1px solid var(--ink); font-family: monospace; font-size: .7rem; font-weight: 800; padding: .55rem .75rem; }
