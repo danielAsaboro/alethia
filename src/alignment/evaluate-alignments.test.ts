@@ -36,13 +36,28 @@ describe("evaluateAlignmentDecisions", () => {
 
     expect(report.accuracy).toBe(0.5);
     expect(report.confusion).toEqual({
-      accepted: { accepted: 1, rejected: 1 },
-      rejected: { accepted: 1, rejected: 1 },
+      accepted: { accepted: 1, rejected: 1, pending: 0 },
+      rejected: { accepted: 1, rejected: 1, pending: 0 },
+      pending: { accepted: 0, rejected: 0, pending: 0 },
     });
     expect(report.byExpectedStatus.accepted.accuracy).toBe(0.5);
     expect(report.byExpectedStatus.rejected.accuracy).toBe(0.5);
     expect(report.acceptedClass).toEqual({ precision: 0.5, recall: 0.5, f1: 0.5 });
     expect(report.errors).toHaveLength(2);
+  });
+
+  it("scores independently expected pending mappings", () => {
+    const pending = decision("ambiguous", "pending");
+    const report = evaluateAlignmentDecisions([pending], [{
+      sourceTermId: pending.sourceTermId,
+      candidateOntologyTermId: pending.candidateOntologyTermId,
+      expectedStatus: "pending",
+      stratum: "ambiguous_pending_mapping",
+      rationale: "the source field is structurally present but semantically ambiguous",
+    }]);
+    expect(report.accuracy).toBe(1);
+    expect(report.expectedCounts.pending).toBe(1);
+    expect(report.byStratum.ambiguous_pending_mapping.accuracy).toBe(1);
   });
 
   it("scores same-surface/different-meaning and different-surface/equivalent strata independently", () => {

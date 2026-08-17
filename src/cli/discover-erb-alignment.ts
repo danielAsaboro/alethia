@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { buildAlignmentAudit, type AlignmentObservationSpec } from "@/alignment/build-audit";
 import { evaluateAlignmentDecisions, parseAlignmentAuditLabels } from "@/alignment/evaluate-alignments";
+import { observeErbSchema } from "@/alignment/observe-erb-schema";
 import { HydraRepository } from "@/hydra/client";
 import { mapEvidenceSystemToGraph } from "@/hydra/evidence-graph";
 import { ErbAdapter } from "@/ingestion/erb-adapter";
@@ -47,12 +48,16 @@ async function main(): Promise<void> {
     datasetUrl: string;
     outputSha256: string;
     missingDocumentIds: string[];
-    alignmentObservations: AlignmentObservationSpec[];
+    alignmentObservations?: AlignmentObservationSpec[];
+    selectionMode?: string;
   };
-  if (manifest.missingDocumentIds.length > 0 || manifest.alignmentObservations.length === 0) {
+  const observations = manifest.selectionMode === "alignment-scale-v2"
+    ? observeErbSchema(ingestion.records)
+    : manifest.alignmentObservations ?? [];
+  if (manifest.missingDocumentIds.length > 0 || observations.length === 0) {
     throw new Error("Alignment acquisition manifest is incomplete");
   }
-  const audit = buildAlignmentAudit(ingestion.records, manifest.alignmentObservations);
+  const audit = buildAlignmentAudit(ingestion.records, observations);
   // Labels are deliberately loaded only after the runtime audit decisions exist.
   const rawLabels = await readFile(path.resolve(options.labels), "utf8");
   const labels = parseAlignmentAuditLabels(JSON.parse(rawLabels));
@@ -80,8 +85,18 @@ async function main(): Promise<void> {
     if (presence.nodes !== graph.nodes.length || presence.edges !== graph.edges.length) {
       throw new Error("HydraDB alignment round trip is incomplete");
     }
-    if (Object.values(traversals).some((rows) => rows.length !== 2)) {
-      throw new Error("HydraDB alignment decision traversal is incomplete");
+    const expectedTraversalIds = new Map(audit.sourceTerms.map((term) => [
+      term.id,
+      new Set(audit.decisions.filter((decision) => decision.sourceTermId === term.id).map((decision) => decision.id)),
+    ]));
+    const missingTraversalIds = Object.entries(traversals).flatMap(([termId, rows]) => {
+      const returned = new Set(rows.map((row) => row.decisionId));
+      return [...(expectedTraversalIds.get(termId) ?? [])]
+        .filter((decisionId) => !returned.has(decisionId))
+        .map((decisionId) => ({ termId, decisionId }));
+    });
+    if (missingTraversalIds.length > 0) {
+      throw new Error(`HydraDB alignment decision traversal is incomplete: ${JSON.stringify(missingTraversalIds.slice(0, 10))}`);
     }
     const liveDecisions = new Map(Object.values(traversals).flat().map((decision) => [decision.decisionId, decision]));
     for (const label of labels) {
@@ -113,6 +128,8 @@ async function main(): Promise<void> {
         idempotentWriteCount: 2,
         presence,
         traversals,
+        auditedTraversalCount: audit.decisions.length,
+        historicalTraversalCount: Object.values(traversals).flat().length - audit.decisions.length,
       },
     };
     const output = path.resolve(options.output);

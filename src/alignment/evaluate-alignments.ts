@@ -15,7 +15,7 @@ export type AlignmentAuditStratum =
 export interface AlignmentAuditLabel {
   sourceTermId: string;
   candidateOntologyTermId: string;
-  expectedStatus: "accepted" | "rejected";
+  expectedStatus: "accepted" | "rejected" | "pending";
   stratum: AlignmentAuditStratum;
   rationale: string;
 }
@@ -28,7 +28,11 @@ function key(value: Pick<AlignmentAuditLabel, "sourceTermId" | "candidateOntolog
 }
 
 function emptyConfusion(): Confusion {
-  return { accepted: { accepted: 0, rejected: 0 }, rejected: { accepted: 0, rejected: 0 } };
+  return {
+    accepted: { accepted: 0, rejected: 0, pending: 0 },
+    rejected: { accepted: 0, rejected: 0, pending: 0 },
+    pending: { accepted: 0, rejected: 0, pending: 0 },
+  };
 }
 
 function score(rows: Array<{ expected: Status; actual: Status }>) {
@@ -68,12 +72,11 @@ export function evaluateAlignmentDecisions(
     seenLabels.add(mappingKey);
     const decision = decisionsByKey.get(mappingKey);
     if (!decision) throw new TypeError(`Unmatched alignment label: ${mappingKey}`);
-    if (decision.status === "pending") throw new TypeError(`Pending audited alignment decision: ${mappingKey}`);
     return { label, decision, expected: label.expectedStatus, actual: decision.status };
   });
   const rows = matched.map(({ expected, actual }) => ({ expected, actual }));
   const overall = score(rows);
-  const statuses: Status[] = ["accepted", "rejected"];
+  const statuses: Status[] = ["accepted", "rejected", "pending"];
   const strata: AlignmentAuditStratum[] = [
     "contextual_mapping",
     "same_surface_same_meaning",
@@ -118,7 +121,7 @@ export function parseAlignmentAuditLabels(value: unknown): AlignmentAuditLabel[]
   return artifact.labels.map((raw, index) => {
     if (!raw || typeof raw !== "object") throw new TypeError(`Invalid alignment label at index ${index}`);
     const label = raw as Record<string, unknown>;
-    const validStatus = label.expectedStatus === "accepted" || label.expectedStatus === "rejected";
+    const validStatus = label.expectedStatus === "accepted" || label.expectedStatus === "rejected" || label.expectedStatus === "pending";
     const validStratum = ["contextual_mapping", "same_surface_same_meaning", "same_surface_different_meaning", "domain_range_hard_negative", "different_surface_equivalent_meaning", "domain_mismatch", "range_mismatch", "contextual_role_mismatch", "source_system_hard_negative", "ambiguous_pending_mapping"].includes(String(label.stratum));
     if (typeof label.sourceTermId !== "string" || typeof label.candidateOntologyTermId !== "string" || !validStatus || !validStratum || typeof label.rationale !== "string") {
       throw new TypeError(`Invalid alignment label at index ${index}`);

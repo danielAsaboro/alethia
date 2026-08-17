@@ -20,6 +20,37 @@ const contextualHints: Record<string, string> = {
   "github|pull_request|reviewer|code_review_request": "CODE_REVIEWER",
 };
 
+const roleHints: Record<string, string> = {
+  record_title: "RECORD_TITLE",
+  record_body: "RECORD_BODY",
+  record_summary: "RECORD_SUMMARY",
+  objective: "OBJECTIVE",
+  scope: "SCOPE",
+  requirements: "REQUIREMENT",
+  procedure: "PROCEDURE",
+  discussion: "DISCUSSION",
+  timestamp: "TIMESTAMP",
+  author: "AUTHOR",
+  recipient: "RECIPIENT",
+  subject: "SUBJECT",
+  next_step: "NEXT_STEP",
+  impact: "IMPACT",
+  root_cause: "ROOT_CAUSE",
+  motivation: "MOTIVATION",
+  release_note: "RELEASE_NOTE",
+  terminology: "TERMINOLOGY",
+  lead_source: "LEAD_SOURCE",
+  transcript: "TRANSCRIPT",
+  topic: "TOPIC",
+  channel: "CHANNEL",
+  message: "MESSAGE",
+  code_block: "CODE_BLOCK",
+  audience: "AUDIENCE",
+  assessment: "ASSESSMENT",
+  observability: "OBSERVABILITY",
+  activity_timeline: "ACTIVITY_TIMELINE",
+};
+
 function normalizeSurface(value: string): string {
   return value
     .normalize("NFKC")
@@ -49,7 +80,7 @@ export function createSourceSchemaTerm(input: {
     canonicalHint:
       contextualHints[
         `${input.sourceSystem}|${input.objectType}|${normalizedSurface}|${input.contextualRole}`
-      ] ?? "UNMAPPED",
+      ] ?? roleHints[input.contextualRole] ?? "UNMAPPED",
   };
 }
 

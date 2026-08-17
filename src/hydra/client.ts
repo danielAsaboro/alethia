@@ -150,7 +150,7 @@ export interface GraphAlignmentDecision {
   sourceTermId: string;
   ontologyTermId: string;
   ontologyTermName: string;
-  relationship: "MAPS_TO" | "REJECTED_MAPPING";
+  relationship: "MAPS_TO" | "REJECTED_MAPPING" | "CONSIDERS";
   reason: string;
   evidenceObservationIds?: string[];
   constraints?: string[];
@@ -1057,7 +1057,7 @@ export class HydraRepository {
     sourceTermLogicalId: string,
   ): Promise<GraphAlignmentDecision[]> {
     const sourceTermId = hydraIntId(sourceTermLogicalId);
-    const [acceptedRows, decisionRows, metadataRows] = await Promise.all([
+    const [acceptedRows, decisionRows, metadataRows, candidateRows] = await Promise.all([
       this.query(
         "MATCH (s:SourceSchemaTerm {id: $sourceTermId})-[r:MAPS_TO]->(o:OntologyTerm) RETURN r.payload_json AS edgePayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
         { sourceTermId },
@@ -1067,6 +1067,9 @@ export class HydraRepository {
       ),
       this.query(
         "MATCH (d:AlignmentDecision)-[:CONSIDERS]->(s:SourceSchemaTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, s.logical_id AS sourceTerm",
+      ),
+      this.query(
+        "MATCH (d:AlignmentDecision)-[:CONSIDERS]->(o:OntologyTerm) RETURN d.logical_id AS decision, d.payload_json AS decisionPayload, o.logical_id AS ontology, o.payload_json AS ontologyPayload",
       ),
     ]);
     const metadata = new Map(metadataRows.map((row) => [String(row.decision), JSON.parse(String(row.decisionPayload)) as Record<string, unknown>]));
@@ -1110,7 +1113,25 @@ export class HydraRepository {
         ...provenance(String(row.decision)),
       }];
     });
-    return [...accepted, ...rejected].sort((left, right) =>
+    const sourceDecisions = new Set(metadataRows
+      .filter((row) => String(row.sourceTerm) === sourceTermLogicalId)
+      .map((row) => String(row.decision)));
+    const pending = candidateRows.flatMap((row): GraphAlignmentDecision[] => {
+      const payload = JSON.parse(String(row.decisionPayload)) as Record<string, unknown>;
+      if (!sourceDecisions.has(String(row.decision)) || payload.status !== "pending") return [];
+      const ontologyPayload = JSON.parse(String(row.ontologyPayload)) as Record<string, unknown>;
+      return [{
+        decisionId: String(row.decision),
+        status: "pending",
+        sourceTermId: sourceTermLogicalId,
+        ontologyTermId: String(row.ontology),
+        ontologyTermName: String(ontologyPayload.name),
+        relationship: "CONSIDERS",
+        reason: String(payload.reason),
+        ...provenance(String(row.decision)),
+      }];
+    });
+    return [...accepted, ...rejected, ...pending].sort((left, right) =>
       left.decisionId.localeCompare(right.decisionId),
     );
   }
