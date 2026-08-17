@@ -109,6 +109,19 @@ export interface GraphClaimEvidence {
   evidenceQuote?: string;
 }
 
+export interface BatchedClaimEvidenceResult {
+  operation: "batched_source_claim_lookup";
+  consistency: "strong";
+  queryId: string;
+  queryIds: string[];
+  readEpoch: number | null;
+  bookmark: string | null;
+  latencyMs: number;
+  roundTrips: number;
+  requestedSources: number;
+  rows: GraphClaimEvidence[];
+}
+
 export interface TeamMemberEvidence {
   entityLogicalId: string;
   displayName: string;
@@ -329,7 +342,7 @@ export function hydraRequestQueryId(
   cypher: string,
   parameters: Record<string, unknown>,
 ): string {
-  return /^\s*UNWIND\b/i.test(cypher)
+  return /^\s*UNWIND\b/i.test(cypher) && /\b(?:MERGE|CREATE|SET|DELETE|REMOVE)\b/i.test(cypher)
     ? hydraQueryId(cypher, parameters)
     : `sourcetruce-read-${randomUUID()}`;
 }
@@ -969,6 +982,56 @@ export class HydraRepository {
         },
       ];
     });
+  }
+
+  async findClaimsForSources(sourceLogicalIds: string[]): Promise<BatchedClaimEvidenceResult> {
+    const sources = [...new Set(sourceLogicalIds)].sort();
+    if (sources.length === 0 || sources.length > 100 || sources.some((source) => !source)) {
+      throw new TypeError("Batched claim lookup requires 1-100 non-empty source IDs");
+    }
+    const results: HydraQueryResult[] = [];
+    for (const batch of chunkRows(sources, 40)) {
+      const parameters = Object.fromEntries(batch.map((source, index) => [`source${index}`, hydraIntId(source)]));
+      const predicate = batch.map((_, index) => `s.id = $source${index}`).join(" OR ");
+      results.push(await this.request(
+        `MATCH (s)<-[:SUPPORTED_BY]-(c) WHERE ${predicate} RETURN c.logical_id AS claim, c.payload_json AS claimPayload, s.logical_id AS source, s.payload_json AS sourcePayload`,
+        parameters,
+        "strong",
+      ));
+    }
+    const rows = results.flatMap((result) => result.rows).map((row): GraphClaimEvidence => {
+      const claimPayload = JSON.parse(String(row.claimPayload)) as Record<string, unknown>;
+      const sourcePayload = JSON.parse(String(row.sourcePayload)) as Record<string, unknown>;
+      const object = typeof claimPayload.objectJson === "string"
+        ? JSON.parse(claimPayload.objectJson) as GraphClaimEvidence["object"]
+        : { kind: "literal" as const, value: claimPayload.value as string | number | boolean };
+      return {
+        claimLogicalId: String(row.claim),
+        predicate: String(claimPayload.predicate),
+        object,
+        sourceLogicalId: String(row.source),
+        sourceSystem: String(sourcePayload.sourceSystem ?? "unknown"),
+        sourceNativeId: String(sourcePayload.nativeId ?? "unknown"),
+        ...(claimPayload.extractionMethod === "deterministic" || claimPayload.extractionMethod === "qvac" ? { extractionMethod: claimPayload.extractionMethod } : {}),
+        ...(typeof claimPayload.extractorVersion === "string" ? { extractorVersion: claimPayload.extractorVersion } : {}),
+        ...(typeof claimPayload.evidenceQuote === "string" ? { evidenceQuote: claimPayload.evidenceQuote } : {}),
+      };
+    }).sort((left, right) => left.sourceLogicalId.localeCompare(right.sourceLogicalId) || left.claimLogicalId.localeCompare(right.claimLogicalId));
+    if (rows.some((row) => !sources.includes(row.sourceLogicalId))) {
+      throw new TypeError("HydraDB batched claim lookup returned an unrequested source");
+    }
+    return {
+      operation: "batched_source_claim_lookup",
+      consistency: "strong",
+      queryId: results[0]!.queryId,
+      queryIds: results.map((result) => result.queryId),
+      readEpoch: results.at(-1)!.readEpoch,
+      bookmark: results.at(-1)!.bookmark,
+      latencyMs: results.reduce((sum, result) => sum + result.latencyMs, 0),
+      roundTrips: results.length,
+      requestedSources: sources.length,
+      rows,
+    };
   }
 
   async findObservationEvidence(

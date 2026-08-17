@@ -21,6 +21,10 @@ describe("hydraQueryId", () => {
     expect(hydraRequestQueryId(read, {})).not.toBe(
       hydraRequestQueryId(read, {}),
     );
+    const unwindRead = "UNWIND $ids AS id MATCH (n {id: id}) RETURN n";
+    expect(hydraRequestQueryId(unwindRead, { ids: [1] })).not.toBe(
+      hydraRequestQueryId(unwindRead, { ids: [1] }),
+    );
 
     const mutation = "UNWIND $rows AS row MERGE (n {id: row.id})";
     expect(hydraRequestQueryId(mutation, { rows: [{ id: 1 }] })).toBe(

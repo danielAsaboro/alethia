@@ -29,6 +29,7 @@
     "measure:hydra-leverage": "tsx src/cli/measure-hydra-leverage.ts",
     "measure:ablations": "tsx src/cli/measure-policy-ablations.ts",
     "measure:performance": "tsx src/cli/measure-performance.ts",
+    "measure:batched-claims": "tsx src/cli/measure-batched-claims.ts",
     "verify:resilience": "tsx src/cli/verify-resilience.ts",
     "verify:readme-claims": "tsx src/cli/verify-readme-claims.ts",
     "adjudicate:erb-conflict": "tsx src/cli/adjudicate-erb-conflict.ts",

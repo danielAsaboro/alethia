@@ -10,6 +10,7 @@ describe("summarizeTrials", () => {
       min: 10,
       median: 25,
       p95: 40,
+      p99: 40,
       max: 40,
     });
   });
