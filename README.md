@@ -16,14 +16,17 @@ Conventional RAG retrieves passages and asks a model to reconcile them inside a 
 - `NOT_FOUND` requires a completed coverage slice; missing coverage yields `UNKNOWN`;
 - each verdict states what new evidence or decision would change it.
 
-## Eight live judge cases
+## Eleven live judge cases
 
 | Case | Real-data proof | Result |
 | --- | --- | --- |
 | Resolve a conflict | ERB Jira proposal says 20%; applied Drive policy says 30% | `SUPPORTED` → 30%, with both exact quotes retained |
 | Supersede stale guidance | ERB updated replay-risk guidance says 120 seconds; older guidance says 180 | `SUPPORTED` → 120 seconds, with the losing claim retained |
+| Refuse an unsupported winner | ERB contains equally applied contradictory records with no authority distinction | `DISPUTED`; no controlling answer is invented |
 | Disambiguate “owner” | ERB Drive and HubSpot source-schema observations | `FILE_OWNER` and `OPPORTUNITY_OWNER`, not generic `OWNS` |
+| Reject an incompatible alignment | ERB source context conflicts with a generic domain/range mapping | Rejected mapping and constraint evidence remain queryable |
 | Decide who this person is | HERB contains two David Taylor records with different employee IDs | Keep separate; the hard constraint blocks the fuzzy match |
+| Accept a verified identity link | HERB records share an exact employee ID and agreeing name | Accepted link with resolution signals retained |
 | Admit uncertainty | HERB has no completed `favorite_lunch` coverage | `UNKNOWN`, not a fabricated answer or false `NOT_FOUND` |
 | Retrieve a canonical fact | HERB employee, role claim, and source evidence | `SUPPORTED` → Software Engineer |
 | Traverse a product team | HERB product membership → employees → name claims → sources | `SUPPORTED` → 66 grounded team members |
@@ -83,7 +86,7 @@ npm run qvac:model:fetch
 npm run qvac:serve
 ```
 
-Check QVAC's per-request `backend=` telemetry rather than assuming that a GPU request was honored. A one-layer diagnostic launched by Codex returned `metal: false`, no enumerated GPUs, and `backend=cpu`; this was a Codex environment result, not evidence that QVAC's Apple Silicon prebuild was broken. Codex's macOS Seatbelt sandbox can block the IOKit access Metal needs for device enumeration, including in `danger-full-access` mode ([Codex #17644](https://github.com/openai/codex/issues/17644), [Codex #9007](https://github.com/openai/codex/issues/9007)). On the same M3 Pro, QVAC launched independently from the normal macOS Terminal and served `gpu_layers: 99` with `backend=gpu`; a real 4,096-token-profile probe completed with 486 ms time to first token and 5.6 generated tokens per second. The checked-in profile now requests `ctx_size: 16384`; restart QVAC after changing this value and verify the loaded profile before relying on it. Qwen3.8-27B supports a 262,144-token native context and documents extension to 1,000,000 tokens with YaRN/RoPE scaling, so the checked-in 16K allocation is a deliberate local-memory setting rather than the model limit. If a future Codex-launched process reports no GPUs, repeat the test from Terminal before changing the model or build. QVAC's official [macOS build requirements](https://github.com/tetherto/qvac/blob/main/packages/llm-llamacpp/build.md) list Xcode Command Line Tools and Apple Clang 15 or newer; full Xcode is not a prerequisite.
+Check QVAC's observed telemetry rather than assuming a GPU request was honored. On the verified M3 Pro run, the checked-in `ctx_size: 16384` profile used `backend=gpu`, the native runtime reported 66/66 model layers offloaded to Metal, and all three probes were accepted: two canonical ERB documents plus an exact WCAG quote grounded near the end of a 37,458-character canonical HERB slice. The verifier also checks the 17.56 GB model checksum before and after inference. The explicit `main-gpu: integrated` selector is intentionally absent: on unified-memory Apple Silicon it caused this QVAC build to select CPU, while `device: gpu` plus `gpu_layers: 99` selected Metal. Restart QVAC after profile changes and verify the loaded backend before relying on it. QVAC's official [macOS build requirements](https://github.com/tetherto/qvac/blob/main/packages/llm-llamacpp/build.md) list Xcode Command Line Tools and Apple Clang 15 or newer.
 
 Clone the research datasets beside the project (not inside this Git repository), then set explicit local paths. HERB is research-only and CC BY-NC 4.0; review its dataset card before use.
 
@@ -160,6 +163,23 @@ npm run discover:erb-alignment -- \
   --output "$EVIDENCE_DIR/erb-alignment.json"
 ```
 
+Run the remaining reproducibility gates with parent-workspace evidence paths of your choice:
+
+```bash
+npm run qvac:verify-profile -- --documents "$ERB_CONFLICTS_JSONL" \
+  --boundary-source "$HERB_DIR/data/products/ActionGenie.json" \
+  --server-log "$EVIDENCE_DIR/qvac-server.log" \
+  --native-log "$EVIDENCE_DIR/qvac-native.log" \
+  --config qvac.config.json --model .local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf \
+  --output "$EVIDENCE_DIR/qvac-profile.json"
+npm run verify:resilience -- \
+  --herb-input "$HERB_DIR/data/products/ActionGenie.json" \
+  --output "$EVIDENCE_DIR/resilience.json"
+npm run measure:performance -- \
+  --ledger "$EVIDENCE_DIR/ingestion-ledger.json" --trials 3 \
+  --output "$EVIDENCE_DIR/performance.json"
+```
+
 Start the app and open [http://localhost:3000](http://localhost:3000):
 
 ```bash
@@ -177,8 +197,9 @@ npm run dev
 | `HYDRA_CELL_ID` | `cell-0` | HydraDB cell |
 | `QVAC_BASE_URL` | `http://127.0.0.1:11436/v1` | Local OpenAI-compatible QVAC endpoint |
 | `QVAC_MODEL` | `sourcetruce-extractor` | QVAC alias backed by the verified local Qwen3.8 27B GGUF |
+| `QVAC_REQUEST_TIMEOUT_MS` | `120000` | Per-request timeout; bounded from 1,000 through 1,800,000 ms for long-context verification |
 
-HydraDB OSS 0.1.0 is pinned by image digest in `docker-compose.yml`. Compose binds HydraDB ports to loopback only.
+HydraDB is pinned by image digest in `docker-compose.yml`. Compose binds HydraDB ports to loopback only.
 
 ## Verified results
 
@@ -186,26 +207,34 @@ Fresh local evidence from August 20, 2026:
 
 | Lane | Result |
 | --- | ---: |
-| Live judge cases | 8 attempted / 8 completed / 100% expected outcome; 13.6 ms p50 / 316.0 ms p95 |
+| Live judge behavior matrix | 11 attempted / 11 completed; `SUPPORTED`, `DISPUTED`, `UNKNOWN`, and `NOT_FOUND` all exercised through HydraDB |
+| Browser production verification | 11/11 UI runs returned verdicts with 11 unique Hydra query IDs; desktop and 390 px mobile layouts verified |
 | Qwen3.8 ERB conflict extraction | 20 questions; 40/40 grounded observations accepted; 0 rejected |
 | Promoted ERB conflict graphs | 20/20 written to real HydraDB; 20 resolved; 0 unresolved |
-| ERB development-set evaluation | 20/20 answered and scored; all seven primary quality metrics at their mathematical optimum |
-| Divergent ERB source-version groups | 1 group / 2 payload versions / 1 `VERSION_OF` edge |
-| Source-aware mappings | 5 accepted + 5 rejected alternatives |
+| ERB labeled development evaluation | 20/20 answered and scored; all seven primary quality metrics at their mathematical optimum after iterative engineering |
+| Frozen unseen ERB holdout | 5/5 attempted; answer correctness/completeness and verdict accuracy 0.20; evidence precision 1.00, recall 0.10; coverage accuracy 1.00 |
+| Audited source-aware mappings | 10 balanced labels: 5 accepted + 5 rejected; accuracy 1.00 on this audited slice |
 | HERB identity candidates | 1,645 same-name pairs |
 | Hard negative identity pairs blocked | 1,627 |
-| SourceTruce false merges on known hard negatives | 0 |
-| Full HERB graph | 12,378 nodes / 22,906 edges |
-| Hydra native single-path leverage | 1 native round trip vs 4 client round trips; 3 avoided; 4.33× local latency ratio |
+| Audited HERB identity resolution | 24 balanced pairs (12 positive / 12 negative); pairwise and B-cubed F1 1.00 on this audited slice; 0 false merges/splits |
+| Representative ingestion ledger | 773/773 records accepted across 10 source-system labels; 752 distinct native objects |
+| Representative Hydra graph | 12,615 nodes / 23,147 edges; deterministic replay preserved the exact fingerprint |
+| Hydra native single-path leverage | 1 native round trip versus 4 bounded client round trips; 3 round trips avoided |
 | Hydra native multi-path leverage | 2/2 paths returned by `algo.MSpaths` in 1 round trip |
 | Policy/graph ablations | 5/5 produced the predicted material degradation |
-| Resilience | stable repeated 12,378-node/22,906-edge writes; 20/20 concurrent reads; 8/8 replay; outage failed closed |
-| Unit tests | 223 passed + 2 integration-only tests skipped in the ordinary run |
-| Explicit Hydra integration | 2/2 passed |
+| Resilience | 8/8 probes passed; repeated writes stable; 20 unique concurrent reads; 11/11 replay without QVAC; Hydra/QVAC outages failed closed |
+| Hydra restart recovery | Pinned container restarted; persistent graph returned a strong-consistency native path in one round trip |
+| Local graph latency (M3 Pro) | 33 new-connection samples: 14.348 ms median / 253.733 ms p95; 33 reused-connection samples: 15.430 ms median / 262.887 ms p95 |
+| QVAC Metal profile | 3/3 accepted; 16,384 context; GPU observed; 66/66 model layers offloaded; 37,458-character boundary source grounded |
+| Ordinary test suite | 278 passed + 2 integration-only tests skipped |
 
 The evaluator parses and digest-verifies the label-free frozen runtime before it opens the ERB label file. The v17-r4 frozen runtime digest is `2ee3e107f2092b2c4bacdacfc56f170da70e1816a8fd8595297267769fff556b`; its 20 case records all scored correctness `1.0`, completeness `1.0`, verdict accuracy `1.0`, evidence recall `1.0`, grounding acceptance `1.0`, invalid-extra-evidence rate `0`, and malformed-output rate `0`.
 
 This is a development-set result after iterative engineering against the official 20 conflict labels, not an unseen holdout claim. The pre-label v9 clean baseline was: correctness `0.55`, completeness `0.63`, verdict accuracy `0.85`, evidence recall `0.8974`, invalid-extra-evidence rate `0.0541`, and grounding acceptance `0.95`. Both snapshots are reported so the final result is not presented as zero-shot generalization.
+
+The separately frozen five-case holdout is intentionally reported even though it is weak: one case was answered correctly and the remaining four abstained, largely because nine long-document extractions hit the then-current request timeout. Its 0.20 correctness is evidence about current generalization limits, not a score to hide. The later long-context profile proof demonstrates that the configured Metal runtime can ground a near-boundary fact; it does not retroactively rescore or replace the frozen holdout.
+
+Performance figures are local Apple M3 Pro measurements over the representative graph. “New connection” means a newly constructed `HydraRepository`; it does not claim a cold operating-system or HydraDB page cache. No universal latency ratio is claimed.
 
 Run the focused live evaluation:
 
