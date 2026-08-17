@@ -39,6 +39,7 @@
     "measure:batched-claims": "tsx src/cli/measure-batched-claims.ts",
     "verify:resilience": "tsx src/cli/verify-resilience.ts",
     "verify:readme-claims": "tsx src/cli/verify-readme-claims.ts",
+    "verify:evidence": "tsx src/cli/verify-evidence-manifest.ts",
     "adjudicate:erb-conflict": "tsx src/cli/adjudicate-erb-conflict.ts",
     "discover:erb-alignment": "tsx src/cli/discover-erb-alignment.ts",
     "export:erb-alignment-review": "tsx src/cli/export-erb-alignment-review.ts",
