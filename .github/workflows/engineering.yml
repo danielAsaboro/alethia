@@ -1,0 +1,62 @@
+name: Engineering gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engineering-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:release
+      - run: npm audit --audit-level=high
+
+  real-hydra:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start digest-pinned HydraDB
+        run: npm run hydra:up
+      - name: Run real HydraDB write/read, idempotency, traversal, and concurrency checks
+        env:
+          HYDRA_INTEGRATION: "1"
+        run: |
+          for attempt in {1..30}; do
+            if npm test -- src/hydra/hydra.integration.test.ts -t "round-trips an idempotent evidence path"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Capture HydraDB logs
+        if: always()
+        run: docker compose logs --no-color hydradb > hydradb-ci.log
+      - name: Upload HydraDB logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydradb-ci-${{ github.run_id }}
+          path: hydradb-ci.log
+          if-no-files-found: error
+          retention-days: 7
