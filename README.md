@@ -29,7 +29,7 @@ Conventional RAG retrieves passages and asks a model to reconcile them inside a 
 | Accept a verified identity link | HERB records share an exact employee ID and agreeing name | Accepted link with resolution signals retained |
 | Admit uncertainty | HERB has no completed `favorite_lunch` coverage | `UNKNOWN`, not a fabricated answer or false `NOT_FOUND` |
 | Retrieve a canonical fact | HERB employee, role claim, and source evidence | `SUPPORTED` → Software Engineer |
-| Traverse a product team | HERB product membership → employees → name claims → sources | `SUPPORTED` → 66 grounded team members |
+| Traverse a product team | HERB product membership → employees → name claims → sources | `SUPPORTED` → grounded team roster |
 | Prove covered absence | Complete HERB employee-location coverage contains Remote but no Lagos | `NOT_FOUND`, not `UNKNOWN` |
 
 Every successful case is assembled from live HydraDB queries. API failures return HTTP 503; there is no evidence-file or in-memory success fallback.
@@ -63,9 +63,9 @@ HydraDB stores the ontology and performs the decisive traversals. Removing it lo
 - npm
 - Docker with Compose
 - Python 3 for canonical ERB acquisition
-- 36 GB unified/system memory recommended for the local 27B model
+- enough unified/system memory for the local 27B model and its context cache
 - a QVAC-compatible GPU backend (the checked-in profile uses Metal on Apple Silicon)
-- 20 GB free disk space for the pinned Qwen3.8 GGUF and runtime cache
+- enough free disk space for the pinned GGUF and runtime cache
 - local checkouts or acquired slices of HERB and ERB outside this repository
 
 Install dependencies and start HydraDB:
@@ -209,11 +209,10 @@ Fresh local evidence from August 20, 2026:
 | --- | ---: |
 | Live judge behavior matrix | 11 attempted / 11 completed; `SUPPORTED`, `DISPUTED`, `UNKNOWN`, and `NOT_FOUND` all exercised through HydraDB |
 | Browser production verification | 11/11 UI runs returned verdicts with 11 unique Hydra query IDs; desktop and 390 px mobile layouts verified |
-| Qwen3.8 ERB conflict extraction | 20 questions; 40/40 grounded observations accepted; 0 rejected |
-| Promoted ERB conflict graphs | 20/20 written to real HydraDB; 20 resolved; 0 unresolved |
-| ERB labeled development evaluation | 20/20 answered and scored; all seven primary quality metrics at their mathematical optimum after iterative engineering |
+| Promoted ERB conflict graphs | 19/19 written to real HydraDB; 15 resolved and 4 deliberately unresolved |
+| ERB labeled development lane | 19 promoted conflict cases retained as iteratively engineered development evidence, never presented as an unseen result |
 | Frozen unseen ERB holdout | 5/5 attempted; answer correctness/completeness and verdict accuracy 0.20; evidence precision 1.00, recall 0.10; coverage accuracy 1.00 |
-| Audited source-aware mappings | 10 balanced labels: 5 accepted + 5 rejected; accuracy 1.00 on this audited slice |
+| Audited source-aware mappings | 12 balanced labels: 6 accepted + 6 rejected; accuracy 1.00 on this audited slice, including same-surface/different-meaning and different-surface/equivalent-meaning strata |
 | HERB identity candidates | 1,645 same-name pairs |
 | Hard negative identity pairs blocked | 1,627 |
 | Audited HERB identity resolution | 24 balanced pairs (12 positive / 12 negative); pairwise and B-cubed F1 1.00 on this audited slice; 0 false merges/splits |
@@ -226,13 +225,9 @@ Fresh local evidence from August 20, 2026:
 | Hydra restart recovery | Pinned container restarted; persistent graph returned a strong-consistency native path in one round trip |
 | Local graph latency (M3 Pro) | 33 new-connection samples: 14.348 ms median / 253.733 ms p95; 33 reused-connection samples: 15.430 ms median / 262.887 ms p95 |
 | QVAC Metal profile | 3/3 accepted; 16,384 context; GPU observed; 66/66 model layers offloaded; 37,458-character boundary source grounded |
-| Ordinary test suite | 278 passed + 2 integration-only tests skipped |
+| Ordinary test suite | Passed; the live Hydra integration suite is reported separately |
 
-The evaluator parses and digest-verifies the label-free frozen runtime before it opens the ERB label file. The v17-r4 frozen runtime digest is `2ee3e107f2092b2c4bacdacfc56f170da70e1816a8fd8595297267769fff556b`; its 20 case records all scored correctness `1.0`, completeness `1.0`, verdict accuracy `1.0`, evidence recall `1.0`, grounding acceptance `1.0`, invalid-extra-evidence rate `0`, and malformed-output rate `0`.
-
-This is a development-set result after iterative engineering against the official 20 conflict labels, not an unseen holdout claim. The pre-label v9 clean baseline was: correctness `0.55`, completeness `0.63`, verdict accuracy `0.85`, evidence recall `0.8974`, invalid-extra-evidence rate `0.0541`, and grounding acceptance `0.95`. Both snapshots are reported so the final result is not presented as zero-shot generalization.
-
-The separately frozen five-case holdout is intentionally reported even though it is weak: one case was answered correctly and the remaining four abstained, largely because nine long-document extractions hit the then-current request timeout. Its 0.20 correctness is evidence about current generalization limits, not a score to hide. The later long-context profile proof demonstrates that the configured Metal runtime can ground a near-boundary fact; it does not retroactively rescore or replace the frozen holdout.
+The labeled conflict lane is development data after iterative engineering, not an unseen result. The separately frozen five-case holdout is intentionally reported even though it is weak; its `0.20` correctness is evidence about current generalization limits, not a score to hide. The later long-context profile proof demonstrates that the configured Metal runtime can ground a near-boundary fact; it does not retroactively rescore or replace the frozen holdout.
 
 Performance figures are local Apple M3 Pro measurements over the representative graph. “New connection” means a newly constructed `HydraRepository`; it does not claim a cold operating-system or HydraDB page cache. No universal latency ratio is claimed.
 

@@ -16,6 +16,7 @@ const contextualHints: Record<string, string> = {
   "hubspot|opportunity|owner|sales_opportunity": "OPPORTUNITY_OWNER",
   "fireflies|meeting|owner|meeting_metadata": "MEETING_OWNER",
   "jira|issue|assignee|work_item_assignment": "WORK_ITEM_ASSIGNEE",
+  "jira|issue|assigned_to|work_item_assignment": "WORK_ITEM_ASSIGNEE",
   "github|pull_request|reviewer|code_review_request": "CODE_REVIEWER",
 };
 

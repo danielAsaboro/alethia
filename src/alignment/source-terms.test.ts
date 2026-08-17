@@ -37,4 +37,23 @@ describe("source schema terms", () => {
       }),
     ).toMatchObject({ canonicalHint: "WORK_ITEM_ASSIGNEE" });
   });
+
+  it("maps the audited Jira assigned-to surface to the same work-item role", () => {
+    const assignee = createSourceSchemaTerm({
+      sourceSystem: "jira",
+      objectType: "issue",
+      surface: "assignee",
+      contextualRole: "work_item_assignment",
+    });
+    const assignedTo = createSourceSchemaTerm({
+      sourceSystem: "jira",
+      objectType: "issue",
+      surface: "assigned to",
+      contextualRole: "work_item_assignment",
+    });
+
+    expect(assignedTo.id).not.toBe(assignee.id);
+    expect(assignedTo.normalizedSurface).toBe("assigned_to");
+    expect(assignedTo.canonicalHint).toBe("WORK_ITEM_ASSIGNEE");
+  });
 });

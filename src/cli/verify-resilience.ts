@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -16,6 +16,7 @@ import {
 import { mapIngestionToGraph } from "@/hydra/write-bundle";
 import { HerbAdapter } from "@/ingestion/herb-adapter";
 import { runIngestion } from "@/ingestion/run-ingestion";
+import { QvacClient } from "@/qvac/client";
 import { recordGroundingValidation } from "@/qvac/telemetry";
 
 interface VerifyArgs { herbInput: string; output: string }
@@ -47,6 +48,28 @@ const sourceEntity = "entity_90ad19476a96ae677e3c9143";
 const sourceObject = "source_object_fa63884437348a11c9312fb9";
 const usage =
   "Usage: npm run verify:resilience -- --herb-input <path> --output <path>";
+
+export async function probeQvacExtractionOutage(
+  client: Pick<QvacClient, "extractClaims">,
+  source: {
+    id: string;
+    sourceNativeId: string;
+    sourceSystem: string;
+    fields: Record<string, unknown>;
+  },
+): Promise<unknown> {
+  return client.extractClaims({
+    subjectEntityId: `qvac_outage_${source.sourceNativeId}`,
+    sourceObjectId: source.id,
+    sourceSystem: source.sourceSystem,
+    sourceText: JSON.stringify(source.fields),
+    predicates: [{
+      predicate: "resilience_probe_fact",
+      description: "Extract one explicit fact from this canonical record.",
+    }],
+    maxClaims: 1,
+  });
+}
 
 export function parseVerifyResilienceArgs(args: string[]): VerifyArgs {
   if (args.length !== 4) throw new TypeError(usage);
@@ -223,8 +246,18 @@ function hydraRepository(httpUrl = process.env.HYDRA_HTTP_URL ?? "http://127.0.0
 
 async function main() {
   const options = parseVerifyResilienceArgs(process.argv.slice(2));
-  const ingestion = await runIngestion(new HerbAdapter(), path.resolve(options.herbInput));
+  const canonicalHerbPath = path.resolve(options.herbInput);
+  const [ingestion, canonicalHerbJson] = await Promise.all([
+    runIngestion(new HerbAdapter(), canonicalHerbPath),
+    readFile(canonicalHerbPath, "utf8"),
+  ]);
   const graph = mapIngestionToGraph(ingestion);
+  const canonicalQvacProbeSource = {
+    id: sourceObject,
+    sourceNativeId: path.basename(canonicalHerbPath),
+    sourceSystem: "herb",
+    fields: { canonicalJson: canonicalHerbJson },
+  };
   const repository = hydraRepository();
   const outageRepository = hydraRepository("http://127.0.0.1:1");
   try {
@@ -234,14 +267,10 @@ async function main() {
       graph,
       runCases: (candidate) =>
         runFirstPrizeCases(candidate as unknown as CaseRepository),
-      qvacOutageProbe: async () => {
-        const response = await fetch("http://127.0.0.1:1/v1/chat/completions", {
-          method: "POST",
-          signal: AbortSignal.timeout(2_000),
-        });
-        if (!response.ok) throw new Error(`QVAC outage probe returned HTTP ${response.status}`);
-        throw new Error("QVAC outage probe unexpectedly reached a service");
-      },
+      qvacOutageProbe: () => probeQvacExtractionOutage(
+        new QvacClient("http://127.0.0.1:1/v1", "sourcetruce-extractor"),
+        canonicalQvacProbeSource,
+      ),
     });
     if (report.replay.attempted !== 11 || report.replay.failed !== 0) {
       throw new Error("Resilience replay did not complete all eleven real-data cases");

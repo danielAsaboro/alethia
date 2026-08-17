@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GraphWriteBundle } from "@/hydra/client";
-import { parseVerifyResilienceArgs, verifyResilience } from "./verify-resilience";
+import {
+  parseVerifyResilienceArgs,
+  probeQvacExtractionOutage,
+  verifyResilience,
+} from "./verify-resilience";
 
 const graph: GraphWriteBundle = {
   nodes: [
@@ -19,6 +23,26 @@ describe("parseVerifyResilienceArgs", () => {
   it("requires real HERB input and ignored output paths", () => {
     expect(parseVerifyResilienceArgs(["--herb-input", "HERB", "--output", ".local/resilience.json"])).toEqual({ herbInput: "HERB", output: ".local/resilience.json" });
     expect(() => parseVerifyResilienceArgs([])).toThrow(/Usage:/);
+  });
+});
+
+describe("probeQvacExtractionOutage", () => {
+  it("uses the real extraction-client contract with canonical source metadata", async () => {
+    const extractClaims = vi.fn().mockRejectedValue(new Error("QVAC unavailable"));
+
+    await expect(probeQvacExtractionOutage({ extractClaims }, {
+      id: "source_object_canonical",
+      sourceNativeId: "ActionGenie.json",
+      sourceSystem: "herb",
+      fields: { name: "ActionGenie" },
+    })).rejects.toThrow("QVAC unavailable");
+
+    expect(extractClaims).toHaveBeenCalledWith(expect.objectContaining({
+      sourceObjectId: "source_object_canonical",
+      sourceSystem: "herb",
+      sourceText: JSON.stringify({ name: "ActionGenie" }),
+      maxClaims: 1,
+    }));
   });
 });
 
