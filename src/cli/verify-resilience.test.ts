@@ -47,6 +47,43 @@ describe("probeQvacExtractionOutage", () => {
 });
 
 describe("verifyResilience", () => {
+  it("restarts the real graph dependency and proves the same native read recovers", async () => {
+    let read = 0;
+    const restartHydra = vi.fn().mockResolvedValue({
+      containerId: "88af5fbf829f",
+      downtimeMs: 1840,
+      readinessAttempts: 3,
+    });
+    const repository = {
+      writeGraph: vi.fn().mockResolvedValue(undefined),
+      getPresence: vi.fn().mockResolvedValue({ nodes: 3, edges: 2 }),
+      findNativePaths: vi.fn().mockImplementation(async (input) => input.targetLogicalId.includes("missing") ? [] : [{
+        operation: "algo.SPpaths",
+        queryId: `read-${read++}`,
+        roundTrips: 1,
+        pathLength: 2,
+      }]),
+    };
+
+    const report = await verifyResilience({
+      repository,
+      outageRepository: { entityExists: vi.fn().mockRejectedValue(new Error("offline")) },
+      graph,
+      runCases: vi.fn().mockResolvedValue([]),
+      qvacOutageProbe: vi.fn().mockRejectedValue(new Error("QVAC unavailable")),
+      restartHydra,
+    });
+
+    expect(report.restartRecovery).toEqual({
+      containerId: "88af5fbf829f",
+      downtimeMs: 1840,
+      readinessAttempts: 3,
+      recoveredPathLength: 2,
+      recoveredQueryId: "read-20",
+    });
+    expect(report.probes.some((probe) => probe.id === "hydra_restart_read_recovery" && probe.status === "passed")).toBe(true);
+  });
+
   it("proves idempotency, concurrent IDs, replay, and outage failure without QVAC", async () => {
     let read = 0;
     const repository = {
@@ -66,17 +103,17 @@ describe("verifyResilience", () => {
       Array.from({ length: 8 }, (_, index) => ({ caseId: `case-${index}`, status: "completed", workspace: { verdict: "SUPPORTED" } })),
     );
 
-    const report = await verifyResilience({ repository, outageRepository, graph, runCases, qvacOutageProbe: vi.fn().mockRejectedValue(new Error("QVAC unavailable")) });
+    const report = await verifyResilience({ repository, outageRepository, graph, runCases, qvacOutageProbe: vi.fn().mockRejectedValue(new Error("QVAC unavailable")), restartHydra: vi.fn().mockResolvedValue({ containerId: "hydra", downtimeMs: 1, readinessAttempts: 1 }) });
 
     expect(repository.writeGraph).toHaveBeenCalledTimes(2);
-    expect(repository.findNativePaths).toHaveBeenCalledTimes(21);
+    expect(repository.findNativePaths).toHaveBeenCalledTimes(22);
     expect(report).toMatchObject({
       graph: { nodes: 3, edges: 2, stableAcrossRepeatedWrites: true },
       concurrency: { attempted: 20, completed: 20, uniqueQueryIds: 20, oneRoundTripEach: true },
       replay: { attempted: 8, completed: 8, failed: 0, qvacRequired: false },
       outage: { failedClosed: true, workspaceReturned: false },
     });
-    expect(report.probes).toHaveLength(8);
+    expect(report.probes).toHaveLength(9);
     expect(report.probes.every((probe) => probe.status === "passed")).toBe(true);
     expect(report.graph.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -93,6 +130,7 @@ describe("verifyResilience", () => {
       graph,
       runCases: vi.fn().mockResolvedValue([]),
       qvacOutageProbe: vi.fn().mockRejectedValue(new Error("QVAC unavailable")),
+      restartHydra: vi.fn().mockResolvedValue({ containerId: "hydra", downtimeMs: 1, readinessAttempts: 1 }),
     })).rejects.toThrow(/unique query IDs/i);
   });
 });

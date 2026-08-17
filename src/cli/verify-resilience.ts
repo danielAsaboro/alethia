@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import type { CaseRepository } from "@/application/run-case";
 import { fingerprintGraph } from "@/evaluation/graph-fingerprint";
@@ -42,6 +44,11 @@ interface ResilienceDependencies {
   graph: GraphWriteBundle;
   runCases: (repository: ResilienceRepository) => Promise<Array<Pick<FrozenCaseResult, "caseId" | "status" | "workspace" | "error">>>;
   qvacOutageProbe: () => Promise<unknown>;
+  restartHydra: () => Promise<{
+    containerId: string;
+    downtimeMs: number;
+    readinessAttempts: number;
+  }>;
 }
 
 const sourceEntity = "entity_90ad19476a96ae677e3c9143";
@@ -139,6 +146,17 @@ export async function verifyResilience(input: ResilienceDependencies) {
     throw new Error("Incomplete native path probe returned a path");
   }
 
+  const restart = await input.restartHydra();
+  const recoveredPaths = await input.repository.findNativePaths(pathInput);
+  if (recoveredPaths.length !== 1) {
+    throw new Error("Native path did not recover after HydraDB restart");
+  }
+  const restartRecovery = {
+    ...restart,
+    recoveredPathLength: recoveredPaths[0]!.pathLength,
+    recoveredQueryId: recoveredPaths[0]!.queryId,
+  };
+
   const replayResults = await input.runCases(input.repository);
   const replayCompleted = replayResults.filter(
     (result) => result.status === "completed" && result.workspace,
@@ -221,17 +239,45 @@ export async function verifyResilience(input: ResilienceDependencies) {
     },
     qvacOutage: { failedClosed: true, error: qvacOutageError },
     malformedExtraction: { rejected: true, reason: malformed.reason },
+    restartRecovery,
     probes: [
       probe("deterministic_graph_replay", "hydradb", "Two writes preserved exact node and edge presence."),
       probe("stable_graph_fingerprint", "application", `Graph digest ${fingerprint.sha256} remained stable.`),
       probe("concurrent_unique_query_ids", "hydradb", `${queryIds.length} concurrent reads returned unique live query IDs.`),
       probe("incomplete_path_rejected", "hydradb", "A missing target returned zero native paths."),
+      probe("hydra_restart_read_recovery", "hydradb", `Container ${restart.containerId} recovered in ${restart.downtimeMs} ms after ${restart.readinessAttempts} readiness attempts.`),
       probe("hydra_outage_fail_closed", "hydradb", outageError),
       probe("already_ingested_replay_without_qvac", "application", `${replayCompleted.length}/${replayResults.length} cases replayed without QVAC.`),
       probe("malformed_extraction_rejected", "qvac", "Truncated JSON remained rejected and produced zero claims."),
       probe("qvac_outage_fail_closed", "qvac", qvacOutageError),
     ],
   };
+}
+
+const execFileAsync = promisify(execFile);
+
+export async function restartHydraContainer(
+  readinessRepository: Pick<OutageRepository, "entityExists">,
+  container = process.env.HYDRA_CONTAINER_NAME ?? "sourcetruce-hydradb",
+) {
+  const inspected = await execFileAsync("docker", ["inspect", "--format", "{{.Id}}", container]);
+  const containerId = inspected.stdout.trim();
+  if (!containerId) throw new Error(`HydraDB container ${container} was not found`);
+  const started = performance.now();
+  await execFileAsync("docker", ["restart", container]);
+  let lastError = "not ready";
+  for (let readinessAttempts = 1; readinessAttempts <= 120; readinessAttempts += 1) {
+    try {
+      if (await readinessRepository.entityExists(sourceEntity)) {
+        return { containerId, downtimeMs: performance.now() - started, readinessAttempts };
+      }
+      lastError = "probe entity was absent after restart";
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`HydraDB did not recover after restart: ${lastError}`);
 }
 
 function hydraRepository(httpUrl = process.env.HYDRA_HTTP_URL ?? "http://127.0.0.1:8443") {
@@ -271,6 +317,7 @@ async function main() {
         new QvacClient("http://127.0.0.1:1/v1", "sourcetruce-extractor"),
         canonicalQvacProbeSource,
       ),
+      restartHydra: () => restartHydraContainer(repository),
     });
     if (report.replay.attempted !== 11 || report.replay.failed !== 0) {
       throw new Error("Resilience replay did not complete all eleven real-data cases");
