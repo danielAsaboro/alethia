@@ -430,6 +430,9 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         proposalObservation.claimCandidate.id,
       ]),
       policyId,
+      queryIds: [expect.stringMatching(/^sourcetruce-read-/), expect.stringMatching(/^sourcetruce-read-/)],
+      roundTrips: 2,
+      consistency: "strong",
     });
 
     const revisedPolicyId = "policy_grounded_supersession_replay_v1";

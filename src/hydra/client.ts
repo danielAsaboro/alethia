@@ -155,6 +155,12 @@ export interface GraphConflictDecision {
   rightClaimId?: string;
   policyId?: string;
   winningClaimId?: string;
+  queryIds?: string[];
+  roundTrips?: number;
+  consistency?: "strong";
+  latencyMs?: number;
+  readEpoch?: number | null;
+  bookmark?: string | null;
 }
 
 export interface GraphAlignmentDecision {
@@ -1076,16 +1082,20 @@ export class HydraRepository {
     conflictLogicalId: string,
   ): Promise<GraphConflictDecision | null> {
     const conflictId = hydraIntId(conflictLogicalId);
-    const [claimRows, policyRows] = await Promise.all([
-      this.query(
+    const [claimResult, policyResult] = await Promise.all([
+      this.request(
         "MATCH (f:Conflict {id: $conflictId})-[r:CONSIDERS]->(c:Claim) RETURN f.logical_id AS conflict, f.payload_json AS conflictPayload, c.logical_id AS claim, r.payload_json AS edgePayload",
         { conflictId },
+        "strong",
       ),
-      this.query(
+      this.request(
         "MATCH (f:Conflict {id: $conflictId})-[:DECIDED_BY]->(p:AuthorityPolicy) RETURN p.logical_id AS policy",
         { conflictId },
+        "strong",
       ),
     ]);
+    const claimRows = claimResult.rows;
+    const policyRows = policyResult.rows;
     if (claimRows.length === 0) return null;
     const payload = JSON.parse(String(claimRows[0].conflictPayload)) as Record<
       string,
@@ -1113,6 +1123,12 @@ export class HydraRepository {
         ? String(policyRows[0].policy)
         : undefined,
       winningClaimId: winningRow ? String(winningRow.claim) : undefined,
+      queryIds: [claimResult.queryId, policyResult.queryId],
+      roundTrips: 2,
+      consistency: "strong",
+      latencyMs: claimResult.latencyMs + policyResult.latencyMs,
+      readEpoch: policyResult.readEpoch,
+      bookmark: policyResult.bookmark,
     };
   }
 
