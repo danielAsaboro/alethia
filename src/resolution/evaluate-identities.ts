@@ -16,7 +16,7 @@ export type IdentityAuditStratum =
 export interface IdentityPairLabel {
   leftSourceObjectId: string;
   rightSourceObjectId: string;
-  sameEntity: boolean;
+  sameEntity: boolean | null;
   stratum: IdentityAuditStratum;
   rationale: string;
   leftClusterId?: string;
@@ -95,7 +95,8 @@ function bCubed(
   labels: IdentityPairLabel[],
   decisions: Map<string, ResolutionDecision>,
 ): { precision: number; recall: number; f1: number; objects: number } | null {
-  if (labels.some((label) => !label.leftClusterId || !label.rightClusterId)) return null;
+  labels = labels.filter((label) => label.sameEntity !== null);
+  if (labels.length === 0 || labels.some((label) => !label.leftClusterId || !label.rightClusterId)) return null;
   const truth = new Map<string, string>();
   for (const label of labels) {
     for (const [objectId, clusterId] of [
@@ -141,7 +142,8 @@ function clusterPurity(
   labels: IdentityPairLabel[],
   decisions: Map<string, ResolutionDecision>,
 ): { purity: number; clusters: number; objects: number } | null {
-  if (labels.some((label) => !label.leftClusterId || !label.rightClusterId)) return null;
+  labels = labels.filter((label) => label.sameEntity !== null);
+  if (labels.length === 0 || labels.some((label) => !label.leftClusterId || !label.rightClusterId)) return null;
   const truth = new Map<string, string>();
   for (const label of labels) {
     truth.set(label.leftSourceObjectId, label.leftClusterId!);
@@ -202,13 +204,16 @@ export function evaluateIdentityDecisions(
       predicted: decision?.status === "accepted",
     };
   });
+  const binaryEvaluated = evaluated.filter((row): row is typeof row & { expected: boolean } => row.expected !== null);
   const strata = [...new Set(labels.map((label) => label.stratum))].sort();
   const signalKinds = [...new Set(evaluated.flatMap((row) => row.decision?.signals.map((signal) => signal.kind) ?? []))].sort();
   const constraintKinds = [...new Set(evaluated.flatMap((row) => row.decision?.constraints ?? []))].sort();
   return {
     auditedPairs: labels.length,
+    binaryScoredPairs: binaryEvaluated.length,
+    independentlyUnresolvedPairs: evaluated.filter((row) => row.expected === null).length,
     positivePairs: labels.filter((label) => label.sameEntity).length,
-    negativePairs: labels.filter((label) => !label.sameEntity).length,
+    negativePairs: labels.filter((label) => label.sameEntity === false).length,
     unmatchedLabels: evaluated.filter((row) => !row.decision).length,
     decisions: {
       accepted: decisions.filter((decision) => decision.status === "accepted").length,
@@ -216,22 +221,27 @@ export function evaluateIdentityDecisions(
       pending: decisions.filter((decision) => decision.status === "pending").length,
       reversed: decisions.filter((decision) => decision.status === "reversed").length,
     },
-    pairwise: quality(evaluated),
+    pendingAgreement: {
+      expectedPending: evaluated.filter((row) => row.expected === null).length,
+      predictedPending: evaluated.filter((row) => row.decision?.status === "pending").length,
+      correctPending: evaluated.filter((row) => row.expected === null && row.decision?.status === "pending").length,
+    },
+    pairwise: quality(binaryEvaluated),
     byStratum: Object.fromEntries(strata.map((stratum) => [
       stratum,
-      quality(evaluated.filter((row) => row.label.stratum === stratum)),
+      quality(binaryEvaluated.filter((row) => row.label.stratum === stratum)),
     ])),
     bySignal: Object.fromEntries(signalKinds.map((signal) => [
       signal,
-      quality(evaluated.filter((row) => row.decision?.signals.some((item) => item.kind === signal))),
+      quality(binaryEvaluated.filter((row) => row.decision?.signals.some((item) => item.kind === signal))),
     ])),
     byConstraint: Object.fromEntries(constraintKinds.map((constraint) => [
       constraint,
-      quality(evaluated.filter((row) => row.decision?.constraints.includes(constraint))),
+      quality(binaryEvaluated.filter((row) => row.decision?.constraints.includes(constraint))),
     ])),
     errors: {
-      falseMerges: evaluated.filter((row) => !row.expected && row.predicted).map((row) => row.key),
-      falseSplits: evaluated.filter((row) => row.expected && !row.predicted).map((row) => row.key),
+      falseMerges: binaryEvaluated.filter((row) => row.expected === false && row.predicted).map((row) => row.key),
+      falseSplits: binaryEvaluated.filter((row) => row.expected === true && !row.predicted).map((row) => row.key),
     },
     bCubed: bCubed(labels, activeByPair),
     clusterPurity: clusterPurity(labels, activeByPair),
@@ -272,7 +282,7 @@ export function parseIdentityAuditLabels(value: unknown): {
     if (
       typeof row.leftSourceObjectId !== "string" ||
       typeof row.rightSourceObjectId !== "string" ||
-      typeof row.sameEntity !== "boolean" ||
+      (typeof row.sameEntity !== "boolean" && row.sameEntity !== null) ||
       typeof row.stratum !== "string" ||
       !strata.has(row.stratum as IdentityAuditStratum) ||
       typeof row.rationale !== "string" ||

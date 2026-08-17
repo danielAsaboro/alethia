@@ -58,7 +58,7 @@ describe("HerbAdapter", () => {
             kind: "external_id",
             value: "eid_01942cf0",
             normalizedValue: "eid_01942cf0",
-            sourceSystem: "herb",
+            sourceSystem: "herb:person",
           },
           {
             kind: "name",
@@ -109,5 +109,9 @@ describe("HerbAdapter", () => {
           event.record.sourceNativeId === "ActionGenie",
       ),
     ).toBe(true);
+    const customer = records.find((event) => event.record.sourceObjectType === "customer");
+    const team = records.find((event) => event.record.sourceObjectType === "team_structure");
+    expect(customer?.record.identities.find((identity) => identity.kind === "external_id")?.sourceSystem).toBe("herb:customer");
+    expect(team?.record.identities.find((identity) => identity.kind === "external_id")?.sourceSystem).toBe("herb:person");
   });
 });

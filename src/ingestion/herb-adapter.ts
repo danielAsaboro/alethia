@@ -86,13 +86,17 @@ function createSourceObject(input: {
   };
 }
 
-function externalAndNameIdentities(id: string, name: string): IdentityObservation[] {
+function externalAndNameIdentities(
+  id: string,
+  name: string,
+  externalIdNamespace: string,
+): IdentityObservation[] {
   return [
     {
       kind: "external_id",
       value: id,
       normalizedValue: normalizeText(id),
-      sourceSystem: "herb",
+      sourceSystem: externalIdNamespace,
     },
     {
       kind: "name",
@@ -119,7 +123,7 @@ function normalizeEmployee(
       location: employee.location,
       organization: employee.org,
     },
-    identities: externalAndNameIdentities(employee.employee_id, employee.name),
+    identities: externalAndNameIdentities(employee.employee_id, employee.name, "herb:person"),
   });
 }
 
@@ -167,7 +171,7 @@ async function readJson(filePath: string): Promise<{ body: string; parsed: unkno
 export class HerbAdapter implements SourceAdapter {
   readonly sourceSystem = "herb";
   readonly objectType = "employee";
-  readonly version = "herb-structural-v1";
+  readonly version = "herb-structural-v2";
 
   private async *readEmployees(filePath: string): AsyncIterable<AdapterEvent> {
     const { body, parsed } = await readJson(filePath);
@@ -234,7 +238,7 @@ export class HerbAdapter implements SourceAdapter {
             sourcePath: filePath,
             raw: value,
             fields: { customerId: value.id, name: value.name, role: value.role, company: value.company },
-            identities: externalAndNameIdentities(value.id, value.name),
+            identities: externalAndNameIdentities(value.id, value.name, "herb:customer"),
           }),
         };
       }
@@ -286,7 +290,7 @@ export class HerbAdapter implements SourceAdapter {
             location: value.location,
             directAndNestedReportIds: reportIds,
           },
-          identities: externalAndNameIdentities(value.employee_id, value.name),
+          identities: externalAndNameIdentities(value.employee_id, value.name, "herb:person"),
         }),
       };
     }
@@ -344,7 +348,7 @@ export class HerbAdapter implements SourceAdapter {
           sourcePath: filePath,
           raw: parsed,
           fields: { productName, teamIds, customerIds, artifactCounts },
-          identities: externalAndNameIdentities(productName, productName),
+          identities: externalAndNameIdentities(productName, productName, "herb:product"),
         }),
       };
     }

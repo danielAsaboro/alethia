@@ -97,6 +97,18 @@ describe("resolveEntities", () => {
     });
   });
 
+  it("does not treat identifiers from different object namespaces as conflicting", () => {
+    const result = resolveEntities([
+      sourceObject("customer", [externalIdentity("herb:customer"), nameIdentity("Alex Lee")]),
+      sourceObject("employee", [externalIdentity("herb:person"), nameIdentity("Alex Lee")]),
+    ]);
+
+    expect(result.decisions[0]).toMatchObject({
+      status: "pending",
+      constraints: ["name_not_unique"],
+    });
+  });
+
   it("accepts an explicit verified account link across different names", () => {
     const result = resolveEntities([
       sourceObject("gmail_sam", [nameIdentity("S. Ratnaparkhi")], "gmail"),

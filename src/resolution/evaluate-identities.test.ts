@@ -98,4 +98,21 @@ describe("evaluateIdentityDecisions", () => {
       missing_identifier: 1,
     });
   });
+
+  it("keeps independently unresolved pairs out of binary quality denominators", () => {
+    const report = evaluateIdentityDecisions([
+      decision("pending", ["a", "b"], "pending", "name_similarity", ["name_not_unique"]),
+      decision("negative", ["c", "d"], "rejected", "name_similarity", ["employee_id_conflict"]),
+    ], [
+      { leftSourceObjectId: "a", rightSourceObjectId: "b", sameEntity: null, stratum: "ambiguous_alias", rationale: "authoritative records do not establish identity" },
+      { leftSourceObjectId: "c", rightSourceObjectId: "d", sameEntity: false, stratum: "same_name_different_company", rationale: "distinct verified employee identifiers", leftClusterId: "person-c", rightClusterId: "person-d" },
+    ]);
+
+    expect(report.auditedPairs).toBe(2);
+    expect(report.binaryScoredPairs).toBe(1);
+    expect(report.independentlyUnresolvedPairs).toBe(1);
+    expect(report.pendingAgreement).toEqual({ expectedPending: 1, predictedPending: 1, correctPending: 1 });
+    expect(report.pairwise.pairs).toBe(1);
+    expect(report.bCubed).toEqual({ precision: 1, recall: 1, f1: 1, objects: 2 });
+  });
 });

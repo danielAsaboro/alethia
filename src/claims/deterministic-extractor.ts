@@ -10,7 +10,7 @@ import type {
   ReferencedEntity,
 } from "./claim-extractor";
 
-const extractorVersion = "herb-structural-v1";
+const extractorVersion = "herb-structural-v2";
 
 function externalKey(sourceSystem: string, value: string): string {
   return `${sourceSystem}:${value.trim().toLocaleLowerCase("en-US")}`;
@@ -101,6 +101,7 @@ function resolveExternalClaims(input: {
   source: NormalizedSourceObject;
   subjectEntityId: string;
   predicate: string;
+  externalIdNamespace: string;
   externalIds: string[];
   context: ExtractionContext;
 }): { claims: Claim[]; gaps: ExtractionGap[] } {
@@ -108,7 +109,7 @@ function resolveExternalClaims(input: {
   const gaps: ExtractionGap[] = [];
   for (const externalId of input.externalIds) {
     const entityId = input.context.entityByExternalId.get(
-      externalKey("herb", externalId),
+      externalKey(input.externalIdNamespace, externalId),
     );
     if (!entityId) {
       gaps.push({
@@ -183,13 +184,14 @@ export class DeterministicClaimExtractor implements ClaimExtractor {
       }
     } else if (source.sourceObjectType === "product") {
       for (const relation of [
-        { field: "teamIds", predicate: "has_team_member" },
-        { field: "customerIds", predicate: "serves_customer" },
+        { field: "teamIds", predicate: "has_team_member", externalIdNamespace: "herb:person" },
+        { field: "customerIds", predicate: "serves_customer", externalIdNamespace: "herb:customer" },
       ]) {
         const result = resolveExternalClaims({
           source,
           subjectEntityId,
           predicate: relation.predicate,
+          externalIdNamespace: relation.externalIdNamespace,
           externalIds: stringArrayField(source, relation.field),
           context,
         });
@@ -201,6 +203,7 @@ export class DeterministicClaimExtractor implements ClaimExtractor {
         source,
         subjectEntityId,
         predicate: "manages",
+        externalIdNamespace: "herb:person",
         externalIds: stringArrayField(source, "directAndNestedReportIds"),
         context,
       });

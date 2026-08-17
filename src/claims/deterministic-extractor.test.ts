@@ -40,7 +40,7 @@ describe("DeterministicClaimExtractor", () => {
         sourceObjectId: record.id,
         sourceSystem: "herb",
         extractionMethod: "deterministic",
-        extractorVersion: "herb-structural-v1",
+        extractorVersion: "herb-structural-v2",
       }),
     );
     expect(result.claims.find((claim) => claim.predicate === "member_of")?.object)
