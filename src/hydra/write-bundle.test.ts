@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -7,11 +8,13 @@ import { runIngestion } from "@/ingestion/run-ingestion";
 import { reverseResolution } from "@/resolution/resolve-entities";
 import { mapIngestionToGraph } from "./write-bundle";
 
-describe("mapIngestionToGraph", () => {
+const herbRoot = path.resolve(process.cwd(), "../resources/HERB");
+
+describe.runIf(existsSync(herbRoot))("mapIngestionToGraph against the canonical HERB corpus", () => {
   it("maps the complete real HERB lane into provenance-bearing graph structure", async () => {
     const ingestion = await runIngestion(
       new HerbAdapter(),
-      path.resolve(process.cwd(), "../resources/HERB"),
+      herbRoot,
     );
     const graph = mapIngestionToGraph(ingestion);
 

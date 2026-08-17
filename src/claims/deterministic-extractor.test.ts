@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -11,7 +12,7 @@ import {
 
 const herbRoot = path.resolve(process.cwd(), "../resources/HERB");
 
-describe("DeterministicClaimExtractor", () => {
+describe.runIf(existsSync(herbRoot))("DeterministicClaimExtractor against the canonical HERB corpus", () => {
   it("extracts provenance-bearing structural claims from a real HERB employee", async () => {
     const bundle = await runIngestion(new HerbAdapter(), herbRoot);
     const record = bundle.records.find(

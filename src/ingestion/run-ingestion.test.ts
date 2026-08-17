@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -12,6 +13,7 @@ const employeesPath = path.resolve(
   "../resources/HERB/data/metadata/employee.json",
 );
 const temporaryDirectories: string[] = [];
+const corpusIt = it.runIf(existsSync(employeesPath));
 
 afterEach(async () => {
   await Promise.all(
@@ -22,7 +24,7 @@ afterEach(async () => {
 });
 
 describe("runIngestion", () => {
-  it("produces identical logical IDs when real HERB input is re-read", async () => {
+  corpusIt("produces identical logical IDs when real HERB input is re-read", async () => {
     const first = await runIngestion(new HerbAdapter(), employeesPath);
     const second = await runIngestion(new HerbAdapter(), employeesPath);
 
@@ -40,7 +42,7 @@ describe("runIngestion", () => {
     });
   });
 
-  it("resolves the real HERB employee and team views with auditable decisions", async () => {
+  corpusIt("resolves the real HERB employee and team views with auditable decisions", async () => {
     const result = await runIngestion(
       new HerbAdapter(),
       path.resolve(process.cwd(), "../resources/HERB"),
@@ -64,7 +66,7 @@ describe("runIngestion", () => {
     );
   });
 
-  it("extracts the complete deterministic structural claim lane", async () => {
+  corpusIt("extracts the complete deterministic structural claim lane", async () => {
     const result = await runIngestion(
       new HerbAdapter(),
       path.resolve(process.cwd(), "../resources/HERB"),

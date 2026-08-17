@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { ErbAdapter } from "@/ingestion/erb-adapter";
@@ -5,11 +8,13 @@ import { runIngestion } from "@/ingestion/run-ingestion";
 import { buildAlignmentAudit } from "./build-audit";
 import { observeErbSchema } from "./observe-erb-schema";
 
-describe("observeErbSchema", () => {
+const alignmentPath = path.resolve(process.cwd(), "../resources/EnterpriseRAG-Bench/evidence/alignment-scale.jsonl");
+
+describe.runIf(existsSync(alignmentPath))("observeErbSchema against the canonical ERB corpus", () => {
   it("observes a balanced, real nine-source alignment corpus without labels", async () => {
     const ingestion = await runIngestion(
       new ErbAdapter(),
-      "../resources/EnterpriseRAG-Bench/evidence/alignment-scale.jsonl",
+      alignmentPath,
     );
     const observations = observeErbSchema(ingestion.records);
     const audit = buildAlignmentAudit(ingestion.records, observations);

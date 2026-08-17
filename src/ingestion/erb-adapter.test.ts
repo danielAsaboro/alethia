@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -18,7 +19,7 @@ async function readRecords() {
   return events.filter((event) => event.type === "record");
 }
 
-describe("ErbAdapter", () => {
+describe.runIf(existsSync(evidencePath))("ErbAdapter against the canonical ERB corpus", () => {
   it("normalizes the real versioned conflict evidence without label leakage", async () => {
     const raw = await readFile(evidencePath, "utf8");
     expect(raw).not.toMatch(/gold_answer|answer_facts|expected_doc_ids/);

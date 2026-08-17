@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -10,7 +11,7 @@ const employeesPath = path.resolve(
 );
 const herbRoot = path.resolve(process.cwd(), "../resources/HERB");
 
-describe("HerbAdapter", () => {
+describe.runIf(existsSync(herbRoot))("HerbAdapter against the canonical HERB corpus", () => {
   it("normalizes every employee from the real HERB metadata file", async () => {
     const events = [];
     for await (const event of new HerbAdapter().read(employeesPath)) {
