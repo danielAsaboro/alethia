@@ -41,6 +41,7 @@ describe("evaluateAlignmentDecisions", () => {
     });
     expect(report.byExpectedStatus.accepted.accuracy).toBe(0.5);
     expect(report.byExpectedStatus.rejected.accuracy).toBe(0.5);
+    expect(report.acceptedClass).toEqual({ precision: 0.5, recall: 0.5, f1: 0.5 });
     expect(report.errors).toHaveLength(2);
   });
 
@@ -54,5 +55,28 @@ describe("evaluateAlignmentDecisions", () => {
 
     expect(report.byStratum.same_surface_different_meaning.accuracy).toBe(1);
     expect(report.byStratum.different_surface_equivalent_meaning.accuracy).toBe(1);
+  });
+
+  it("reports every required scaled alignment stratum", () => {
+    const strata = [
+      "same_surface_same_meaning",
+      "same_surface_different_meaning",
+      "different_surface_equivalent_meaning",
+      "domain_mismatch",
+      "range_mismatch",
+      "contextual_role_mismatch",
+      "source_system_hard_negative",
+      "ambiguous_pending_mapping",
+    ] as const;
+    const decisions = strata.map((stratum) => decision(stratum, "rejected"));
+    const report = evaluateAlignmentDecisions(decisions, decisions.map((item, index) => ({
+      sourceTermId: item.sourceTermId,
+      candidateOntologyTermId: item.candidateOntologyTermId,
+      expectedStatus: "rejected" as const,
+      stratum: strata[index]!,
+      rationale: "independently inspected mapping",
+    })));
+
+    expect(Object.fromEntries(Object.entries(report.byStratum).map(([key, value]) => [key, value.count]))).toMatchObject(Object.fromEntries(strata.map((stratum) => [stratum, 1])));
   });
 });

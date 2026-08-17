@@ -4,7 +4,14 @@ export type IdentityAuditStratum =
   | "exact_identifier"
   | "alias_or_verified_link"
   | "name_similarity"
-  | "conflicting_verified_identifiers";
+  | "conflicting_verified_identifiers"
+  | "different_surface_same_person"
+  | "same_name_different_company"
+  | "same_name_different_role"
+  | "ambiguous_alias"
+  | "transitive_cluster"
+  | "high_degree_identity"
+  | "missing_identifier";
 
 export interface IdentityPairLabel {
   leftSourceObjectId: string;
@@ -130,6 +137,40 @@ function bCubed(
   return { precision, recall, f1, objects: objects.length };
 }
 
+function clusterPurity(
+  labels: IdentityPairLabel[],
+  decisions: Map<string, ResolutionDecision>,
+): { purity: number; clusters: number; objects: number } | null {
+  if (labels.some((label) => !label.leftClusterId || !label.rightClusterId)) return null;
+  const truth = new Map<string, string>();
+  for (const label of labels) {
+    truth.set(label.leftSourceObjectId, label.leftClusterId!);
+    truth.set(label.rightSourceObjectId, label.rightClusterId!);
+  }
+  const objects = [...truth.keys()].sort();
+  const predicted = new DisjointSet(objects);
+  for (const [key, decision] of decisions) {
+    if (decision.status !== "accepted") continue;
+    const [left, right] = key.split("\u0000");
+    if (left && right && truth.has(left) && truth.has(right)) predicted.union(left, right);
+  }
+  const clusters = new Map<string, string[]>();
+  for (const objectId of objects) {
+    const root = predicted.find(objectId);
+    clusters.set(root, [...(clusters.get(root) ?? []), objectId]);
+  }
+  let majority = 0;
+  for (const members of clusters.values()) {
+    const counts = new Map<string, number>();
+    for (const objectId of members) {
+      const clusterId = truth.get(objectId)!;
+      counts.set(clusterId, (counts.get(clusterId) ?? 0) + 1);
+    }
+    majority += Math.max(...counts.values());
+  }
+  return { purity: majority / objects.length, clusters: clusters.size, objects: objects.length };
+}
+
 export function evaluateIdentityDecisions(
   decisions: ResolutionDecision[],
   labels: IdentityPairLabel[],
@@ -193,6 +234,7 @@ export function evaluateIdentityDecisions(
       falseSplits: evaluated.filter((row) => row.expected && !row.predicted).map((row) => row.key),
     },
     bCubed: bCubed(labels, activeByPair),
+    clusterPurity: clusterPurity(labels, activeByPair),
   };
 }
 
@@ -201,6 +243,13 @@ const strata = new Set<IdentityAuditStratum>([
   "alias_or_verified_link",
   "name_similarity",
   "conflicting_verified_identifiers",
+  "different_surface_same_person",
+  "same_name_different_company",
+  "same_name_different_role",
+  "ambiguous_alias",
+  "transitive_cluster",
+  "high_degree_identity",
+  "missing_identifier",
 ]);
 
 export function parseIdentityAuditLabels(value: unknown): {

@@ -64,5 +64,38 @@ describe("evaluateIdentityDecisions", () => {
     ]);
 
     expect(report.bCubed).toEqual({ precision: 1, recall: 1, f1: 1, objects: 4 });
+    expect(report.clusterPurity).toEqual({ purity: 1, clusters: 3, objects: 4 });
+  });
+
+  it("reports risk strata required by the scaled identity audit", () => {
+    const cases = [
+      ["alias", "alias_or_verified_link"],
+      ["surface", "different_surface_same_person"],
+      ["company", "same_name_different_company"],
+      ["role", "same_name_different_role"],
+      ["ambiguous", "ambiguous_alias"],
+      ["transitive", "transitive_cluster"],
+      ["degree", "high_degree_identity"],
+      ["missing", "missing_identifier"],
+    ] as const;
+    const decisions = cases.map(([id], index) => decision(id, [`left-${index}`, `right-${index}`], "rejected", "name_similarity"));
+    const report = evaluateIdentityDecisions(decisions, cases.map(([id, stratum], index) => ({
+      leftSourceObjectId: `left-${index}`,
+      rightSourceObjectId: `right-${index}`,
+      sameEntity: false,
+      stratum,
+      rationale: `independent audit ${id}`,
+    })));
+
+    expect(Object.fromEntries(Object.entries(report.byStratum).map(([key, value]) => [key, value.pairs]))).toMatchObject({
+      alias_or_verified_link: 1,
+      different_surface_same_person: 1,
+      same_name_different_company: 1,
+      same_name_different_role: 1,
+      ambiguous_alias: 1,
+      transitive_cluster: 1,
+      high_degree_identity: 1,
+      missing_identifier: 1,
+    });
   });
 });

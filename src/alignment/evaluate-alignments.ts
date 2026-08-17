@@ -2,9 +2,15 @@ import type { AlignmentDecision } from "./alignment-policy";
 
 export type AlignmentAuditStratum =
   | "contextual_mapping"
+  | "same_surface_same_meaning"
   | "same_surface_different_meaning"
   | "domain_range_hard_negative"
-  | "different_surface_equivalent_meaning";
+  | "different_surface_equivalent_meaning"
+  | "domain_mismatch"
+  | "range_mismatch"
+  | "contextual_role_mismatch"
+  | "source_system_hard_negative"
+  | "ambiguous_pending_mapping";
 
 export interface AlignmentAuditLabel {
   sourceTermId: string;
@@ -35,6 +41,16 @@ function score(rows: Array<{ expected: Status; actual: Status }>) {
   return { count: rows.length, correct, accuracy: rows.length === 0 ? null : correct / rows.length, confusion };
 }
 
+function acceptedClass(rows: Array<{ expected: Status; actual: Status }>) {
+  const truePositive = rows.filter((row) => row.expected === "accepted" && row.actual === "accepted").length;
+  const falsePositive = rows.filter((row) => row.expected === "rejected" && row.actual === "accepted").length;
+  const falseNegative = rows.filter((row) => row.expected === "accepted" && row.actual === "rejected").length;
+  const precision = truePositive + falsePositive === 0 ? null : truePositive / (truePositive + falsePositive);
+  const recall = truePositive + falseNegative === 0 ? null : truePositive / (truePositive + falseNegative);
+  const f1 = precision === null || recall === null ? null : precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
+  return { precision, recall, f1 };
+}
+
 export function evaluateAlignmentDecisions(
   decisions: AlignmentDecision[],
   labels: AlignmentAuditLabel[],
@@ -60,9 +76,15 @@ export function evaluateAlignmentDecisions(
   const statuses: Status[] = ["accepted", "rejected"];
   const strata: AlignmentAuditStratum[] = [
     "contextual_mapping",
+    "same_surface_same_meaning",
     "same_surface_different_meaning",
     "domain_range_hard_negative",
     "different_surface_equivalent_meaning",
+    "domain_mismatch",
+    "range_mismatch",
+    "contextual_role_mismatch",
+    "source_system_hard_negative",
+    "ambiguous_pending_mapping",
   ];
   return {
     auditedMappings: labels.length,
@@ -74,6 +96,7 @@ export function evaluateAlignmentDecisions(
     expectedCounts: Object.fromEntries(statuses.map((status) => [status, labels.filter((item) => item.expectedStatus === status).length])),
     accuracy: overall.accuracy,
     confusion: overall.confusion,
+    acceptedClass: acceptedClass(rows),
     byExpectedStatus: Object.fromEntries(statuses.map((status) => [status, score(rows.filter((row) => row.expected === status))])),
     byStratum: Object.fromEntries(strata.map((stratum) => [stratum, score(matched.filter((row) => row.label.stratum === stratum).map(({ expected, actual }) => ({ expected, actual })))])),
     errors: matched.filter(({ expected, actual }) => expected !== actual).map(({ label, decision }) => ({
@@ -96,7 +119,7 @@ export function parseAlignmentAuditLabels(value: unknown): AlignmentAuditLabel[]
     if (!raw || typeof raw !== "object") throw new TypeError(`Invalid alignment label at index ${index}`);
     const label = raw as Record<string, unknown>;
     const validStatus = label.expectedStatus === "accepted" || label.expectedStatus === "rejected";
-    const validStratum = ["contextual_mapping", "same_surface_different_meaning", "domain_range_hard_negative", "different_surface_equivalent_meaning"].includes(String(label.stratum));
+    const validStratum = ["contextual_mapping", "same_surface_same_meaning", "same_surface_different_meaning", "domain_range_hard_negative", "different_surface_equivalent_meaning", "domain_mismatch", "range_mismatch", "contextual_role_mismatch", "source_system_hard_negative", "ambiguous_pending_mapping"].includes(String(label.stratum));
     if (typeof label.sourceTermId !== "string" || typeof label.candidateOntologyTermId !== "string" || !validStatus || !validStratum || typeof label.rationale !== "string") {
       throw new TypeError(`Invalid alignment label at index ${index}`);
     }
