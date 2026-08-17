@@ -14,6 +14,7 @@
     "ingest:herb": "tsx src/cli/ingest-herb.ts",
     "ingest:erb": "tsx src/cli/ingest-erb.ts",
     "ingest:track01": "tsx src/cli/ingest-track01-slice.ts",
+    "index:erb-full": "python3 scripts/build_erb_lexical_index.py",
     "evaluate:herb": "tsx src/cli/evaluate-herb.ts",
     "hydra:up": "./scripts/hydradb-up.sh",
     "hydra:down": "docker compose down",

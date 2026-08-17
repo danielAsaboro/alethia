@@ -1,1 +1,2 @@
 datasets==5.0.1
+duckdb==1.5.5
