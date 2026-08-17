@@ -54,7 +54,7 @@ jobs:
         run: docker logs sourcetruce-hydradb > hydradb-ci.log 2>&1
       - name: Upload HydraDB logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: hydradb-ci-${{ github.run_id }}
           path: hydradb-ci.log
