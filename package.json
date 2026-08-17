@@ -37,6 +37,8 @@
     "audit:herb-identities": "tsx src/cli/audit-herb-identities.ts",
     "export:herb-identity-review": "tsx src/cli/export-herb-identity-review.ts",
     "audit:erb-versions": "tsx src/cli/audit-erb-versions.ts",
+    "audit:anti-leakage": "tsx src/cli/audit-anti-leakage.ts",
+    "verify:release": "npm run audit:anti-leakage && npm test && npm run lint && npm run typecheck && npm run build",
     "evaluate:first-prize": "tsx src/cli/evaluate-first-prize.ts",
     "holdout:freeze": "tsx src/cli/freeze-holdout.ts",
     "holdout:run": "tsx src/cli/run-holdout.ts",

@@ -10,7 +10,7 @@
         "title": "Resolve a conflict",
         "summary": "Compare contradictory infrastructure records and retain the losing claim.",
         "dataset": "Enterprise RAG Bench",
-        "version": "qst_0411-v1",
+        "version": "conflict-corpus-v1",
         "sourceSystems": ["jira", "google_drive"]
       }
     },
@@ -23,7 +23,7 @@
         "title": "Prove a supersession",
         "summary": "Use explicit current-versus-prior lifecycle evidence while retaining the stale claim.",
         "dataset": "Enterprise RAG Bench",
-        "version": "qst_0421-v2",
+        "version": "supersession-corpus-v2",
         "sourceSystems": ["confluence"]
       }
     },
@@ -36,7 +36,7 @@
         "title": "Refuse an unsupported winner",
         "summary": "Retain two equally applied contradictory records when no authority rule distinguishes them.",
         "dataset": "Enterprise RAG Bench",
-        "version": "qst_0429-v1",
+        "version": "disputed-corpus-v1",
         "sourceSystems": ["github", "google_drive"]
       }
     },
