@@ -86,7 +86,7 @@ describe.runIf(existsSync(herbRoot))("HerbAdapter against the canonical HERB cor
 
     const records = events.filter((event) => event.type === "record");
     const coverage = events.filter((event) => event.type === "coverage");
-    expect(records).toHaveLength(698);
+    expect(records).toHaveLength(2329);
     expect(coverage).toHaveLength(4);
     expect(coverage.every((event) => event.slice.status === "complete")).toBe(
       true,
@@ -100,6 +100,7 @@ describe.runIf(existsSync(herbRoot))("HerbAdapter against the canonical HERB cor
     expect(counts).toEqual({
       customer: 120,
       employee: 530,
+      message_author: 1631,
       product: 30,
       team_structure: 18,
     });
@@ -114,5 +115,14 @@ describe.runIf(existsSync(herbRoot))("HerbAdapter against the canonical HERB cor
     const team = records.find((event) => event.record.sourceObjectType === "team_structure");
     expect(customer?.record.identities.find((identity) => identity.kind === "external_id")?.sourceSystem).toBe("herb:customer");
     expect(team?.record.identities.find((identity) => identity.kind === "external_id")?.sourceSystem).toBe("herb:person");
+    const employeeAuthor = records.find((event) => event.record.sourceNativeId === "ActionGenie:author:eid_13fdff84");
+    const botAuthor = records.find((event) => event.record.sourceNativeId === "ActionGenie:author:slack_admin_bot");
+    expect(employeeAuthor?.record.identities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "external_id", sourceSystem: "herb:person", normalizedValue: "eid_13fdff84" }),
+      expect.objectContaining({ kind: "handle", sourceSystem: "herb:slack", normalizedValue: "eid_13fdff84" }),
+    ]));
+    expect(botAuthor?.record.identities).toEqual([
+      expect.objectContaining({ kind: "handle", sourceSystem: "herb:slack", normalizedValue: "slack_admin_bot" }),
+    ]);
   });
 });

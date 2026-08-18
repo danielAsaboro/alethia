@@ -86,6 +86,11 @@ function stringArrayField(
     : [];
 }
 
+function numberField(source: NormalizedSourceObject, key: string): number | undefined {
+  const value = source.fields[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function organizationEntity(name: string): ReferencedEntity {
   return {
     id: stableId("entity", {
@@ -197,6 +202,24 @@ export class DeterministicClaimExtractor implements ClaimExtractor {
         });
         claims.push(...result.claims);
         gaps.push(...result.gaps);
+      }
+    } else if (source.sourceObjectType === "message_author") {
+      const productName = stringField(source, "productName");
+      const messageCount = numberField(source, "messageCount");
+      if (productName) {
+        const result = resolveExternalClaims({
+          source,
+          subjectEntityId,
+          predicate: "authored_messages_in_product",
+          externalIdNamespace: "herb:product",
+          externalIds: [productName],
+          context,
+        });
+        claims.push(...result.claims);
+        gaps.push(...result.gaps);
+      }
+      if (messageCount !== undefined) {
+        claims.push(claim(source, subjectEntityId, "message_count", { kind: "literal", value: messageCount }));
       }
     } else if (source.sourceObjectType === "team_structure") {
       const result = resolveExternalClaims({

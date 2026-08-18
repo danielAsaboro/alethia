@@ -18,11 +18,11 @@ describe.runIf(existsSync(herbRoot))("mapIngestionToGraph against the canonical 
     );
     const graph = mapIngestionToGraph(ingestion);
 
-    expect(graph.nodes).toHaveLength(12378);
-    expect(graph.edges).toHaveLength(22906);
+    expect(graph.nodes).toHaveLength(29526);
+    expect(graph.edges).toHaveLength(55719);
     expect(
       graph.nodes.filter((node) => node.label === "ResolutionDecision"),
-    ).toHaveLength(1645);
+    ).toHaveLength(5684);
     expect(
       graph.nodes
         .filter((node) => node.label === "ResolutionDecision")
@@ -30,16 +30,16 @@ describe.runIf(existsSync(herbRoot))("mapIngestionToGraph against the canonical 
     ).toBe(true);
     expect(
       graph.edges.filter((edge) => edge.type === "ASSERTS"),
-    ).toHaveLength(5130);
+    ).toHaveLength(10023);
     expect(
       graph.edges.filter((edge) => edge.type === "SUPPORTED_BY"),
-    ).toHaveLength(6793);
+    ).toHaveLength(17737);
     expect(
       graph.edges.filter((edge) => edge.type === "CONSIDERS"),
-    ).toHaveLength(3290);
+    ).toHaveLength(11368);
     expect(
       graph.edges.filter((edge) => edge.type === "HAS_IDENTITY"),
-    ).toHaveLength(1396);
+    ).toHaveLength(4624);
     expect(
       graph.edges.filter((edge) => edge.type === "BLOCKED_BY"),
     ).toHaveLength(1627);

@@ -48,10 +48,10 @@ describe("runIngestion", () => {
       path.resolve(process.cwd(), "../resources/HERB"),
     );
 
-    expect(result.resolution.entities).toHaveLength(680);
+    expect(result.resolution.entities).toHaveLength(689);
     expect(
       result.resolution.decisions.filter((decision) => decision.status === "accepted"),
-    ).toHaveLength(18);
+    ).toHaveLength(4057);
     expect(result.resolution.decisions).toContainEqual(
       expect.objectContaining({
         status: "accepted",
@@ -72,7 +72,7 @@ describe("runIngestion", () => {
       path.resolve(process.cwd(), "../resources/HERB"),
     );
 
-    expect(result.extraction.claims).toHaveLength(5130);
+    expect(result.extraction.claims).toHaveLength(10023);
     expect(result.extraction.gaps).toEqual([]);
     expect(
       result.extraction.claims.filter(
@@ -87,6 +87,12 @@ describe("runIngestion", () => {
     expect(
       result.extraction.claims.filter((claim) => claim.predicate === "manages"),
     ).toHaveLength(512);
+    expect(
+      result.extraction.claims.filter((claim) => claim.predicate === "authored_messages_in_product"),
+    ).toHaveLength(1631);
+    expect(
+      result.extraction.claims.filter((claim) => claim.predicate === "message_count"),
+    ).toHaveLength(1631);
   });
 
   it("records invalid JSON as failed coverage instead of success", async () => {

@@ -1,7 +1,7 @@
 import { stableId } from "@/domain/ids";
 
 export interface IdentitySignal {
-  kind: "verified_email_exact" | "verified_account_link" | "external_id_exact" | "name_similarity" | "neighborhood_overlap";
+  kind: "verified_email_exact" | "verified_handle_exact" | "verified_account_link" | "external_id_exact" | "name_similarity" | "neighborhood_overlap";
   value: string;
   weight: number;
 }
@@ -30,6 +30,7 @@ export function scoreIdentityCandidate(input: {
   const hardBlocked = input.constraints.length > 0;
   const verified = input.signals.some((signal) =>
     signal.kind === "verified_email_exact" ||
+    signal.kind === "verified_handle_exact" ||
     signal.kind === "verified_account_link" ||
     signal.kind === "external_id_exact",
   );

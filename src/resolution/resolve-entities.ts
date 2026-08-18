@@ -72,6 +72,12 @@ function assessCandidate(
   const constraints: IdentityConstraint[] = [];
   const sharedEmail = firstOverlap(values(left.identities, "email"), values(right.identities, "email"));
   if (sharedEmail) signals.push({ kind: "verified_email_exact", value: sharedEmail, weight: 1 });
+  for (const identity of left.identities.filter((item) => item.kind === "handle")) {
+    if (right.identities.some((item) => item.kind === "handle" && item.sourceSystem === identity.sourceSystem && item.normalizedValue === identity.normalizedValue)) {
+      signals.push({ kind: "verified_handle_exact", value: identity.normalizedValue, weight: 1 });
+      break;
+    }
+  }
   const sharedName = firstOverlap(values(left.identities, "name"), values(right.identities, "name"));
   if (sharedName) signals.push({ kind: "name_similarity", value: sharedName, weight: 0.35 });
   for (const identity of left.identities.filter((item) => item.kind === "external_id")) {
@@ -107,6 +113,7 @@ function assessCandidate(
       ? scored.constraints.map((constraint) => constraint.kind)
       : scored.status === "pending" ? ["name_not_unique"]
       : scored.signals.some((signal) => signal.kind === "verified_email_exact") ? ["cross_source_email_allowed"]
+      : scored.signals.some((signal) => signal.kind === "verified_handle_exact") ? ["same_account_namespace"]
       : scored.signals.some((signal) => signal.kind === "external_id_exact") ? ["same_identity_namespace"]
       : ["verified_account_link"],
     confidence: scored.status === "pending" ? 0.35 : scored.score,

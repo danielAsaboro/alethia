@@ -82,6 +82,26 @@ describe("resolveEntities", () => {
     });
   });
 
+  it("merges an exact handle only inside the same verified account namespace", () => {
+    const handle = (sourceSystem: string): IdentityObservation => ({
+      kind: "handle", value: "slack_admin_bot", normalizedValue: "slack_admin_bot", sourceSystem,
+    });
+    const result = resolveEntities([
+      sourceObject("product_a_bot", [handle("herb:slack")]),
+      sourceObject("product_b_bot", [handle("herb:slack")]),
+      sourceObject("unrelated_bot", [handle("other:chat")]),
+    ]);
+
+    expect(result.entities).toHaveLength(2);
+    expect(result.decisions).toHaveLength(1);
+    expect(result.decisions[0]).toMatchObject({
+      status: "accepted",
+      signals: [{ kind: "verified_handle_exact", normalizedValue: "slack_admin_bot" }],
+      constraints: ["same_account_namespace"],
+      confidence: 1,
+    });
+  });
+
   it("records a name-only match as pending and refuses to auto-merge it", () => {
     const result = resolveEntities([
       sourceObject("source_a", [nameIdentity()]),

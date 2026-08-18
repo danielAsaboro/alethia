@@ -163,6 +163,49 @@ function collectNestedEmployeeIds(value: unknown, ids = new Set<string>()): Set<
   return ids;
 }
 
+function collectMessageAuthorCounts(value: unknown, counts = new Map<string, number>()): Map<string, number> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectMessageAuthorCounts(item, counts);
+  } else if (isRecord(value)) {
+    if (typeof value.userId === "string" && value.userId.trim()) {
+      const handle = normalizeText(value.userId);
+      counts.set(handle, (counts.get(handle) ?? 0) + 1);
+    }
+    for (const item of Object.values(value)) collectMessageAuthorCounts(item, counts);
+  }
+  return counts;
+}
+
+export function extractProductMessageAuthors(input: {
+  productName: string;
+  sourcePath: string;
+  product: unknown;
+}): NormalizedSourceObject[] {
+  return [...collectMessageAuthorCounts(input.product)]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([authorHandle, messageCount]) => createSourceObject({
+      objectType: "message_author",
+      nativeId: `${input.productName}:author:${authorHandle}`,
+      sourcePath: input.sourcePath,
+      raw: { productName: input.productName, authorHandle, messageCount },
+      fields: { name: authorHandle, productName: input.productName, authorHandle, messageCount },
+      identities: [
+        ...(/^eid_[a-f0-9]+$/u.test(authorHandle) ? [{
+          kind: "external_id" as const,
+          value: authorHandle,
+          normalizedValue: authorHandle,
+          sourceSystem: "herb:person",
+        }] : []),
+        {
+          kind: "handle" as const,
+          value: authorHandle,
+          normalizedValue: authorHandle,
+          sourceSystem: "herb:slack",
+        },
+      ],
+    }));
+}
+
 async function readJson(filePath: string): Promise<{ body: string; parsed: unknown }> {
   const body = await readFile(filePath, "utf8");
   return { body, parsed: JSON.parse(body) as unknown };
@@ -351,6 +394,9 @@ export class HerbAdapter implements SourceAdapter {
           identities: externalAndNameIdentities(productName, productName, "herb:product"),
         }),
       };
+      for (const author of extractProductMessageAuthors({ productName, sourcePath: filePath, product: parsed })) {
+        yield { type: "record", record: author };
+      }
     }
     const runKey = { adapter: this.version, objectType: "product", inputDigests: digests };
     yield {
@@ -358,7 +404,7 @@ export class HerbAdapter implements SourceAdapter {
       slice: coverageSlice({
         runKey,
         objectType: "product",
-        predicateFamilies: ["identity", "product_team", "product_customer", "source_inventory"],
+        predicateFamilies: ["identity", "message_authorship", "product_team", "product_customer", "source_inventory"],
         rejectedCount,
       }),
     };
