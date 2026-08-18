@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { verifyClaim, type EvidenceClaim } from "@/evaluation/claim-ledger";
+import { verifyClaim, verifyGroupedClaim, type EvidenceClaim, type GroupedEvidenceClaim } from "@/evaluation/claim-ledger";
 
 interface Args { manifest: string; output: string }
 const usage = "Usage: npm run verify:readme-claims -- --manifest <claims.json> --output <verified-ledger.json>";
@@ -26,7 +26,9 @@ async function main() {
   const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as { schemaVersion?: unknown; claims?: unknown };
   if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.claims) || parsed.claims.length === 0) throw new TypeError("README claim manifest must contain at least one schema-v1 claim");
   const verified = [];
-  for (const claim of parsed.claims as EvidenceClaim[]) verified.push(await verifyClaim(claim));
+  for (const claim of parsed.claims as Array<EvidenceClaim | GroupedEvidenceClaim>) {
+    verified.push("assertions" in claim ? await verifyGroupedClaim(claim) : await verifyClaim(claim));
+  }
   const output = path.resolve(args.output);
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), manifest: manifestPath, verifiedCount: verified.length, claims: verified }, null, 2)}\n`, "utf8");

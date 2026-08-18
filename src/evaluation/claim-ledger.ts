@@ -16,6 +16,24 @@ export interface EvidenceClaim {
   modelDigest?: string;
 }
 
+export interface EvidenceAssertion {
+  artifact: string;
+  jsonPointer: string;
+  value: unknown;
+}
+
+export interface GroupedEvidenceClaim {
+  id: string;
+  claim: string;
+  command: string;
+  commit: string;
+  timestamp: string;
+  qualifier: string;
+  assertions: EvidenceAssertion[];
+  datasetDigest?: string;
+  modelDigest?: string;
+}
+
 function decodePointerSegment(segment: string): string {
   return segment.replaceAll("~1", "/").replaceAll("~0", "~");
 }
@@ -62,5 +80,43 @@ export async function verifyClaim(claim: EvidenceClaim) {
     ...claim,
     verified: true as const,
     artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+export async function verifyGroupedClaim(claim: GroupedEvidenceClaim) {
+  if (!claim.id || !claim.claim || !claim.command || !claim.commit || !claim.qualifier || Number.isNaN(Date.parse(claim.timestamp)) || !Array.isArray(claim.assertions) || claim.assertions.length === 0) {
+    throw new TypeError("Grouped claim metadata is incomplete");
+  }
+  const cache = new Map<string, { bytes: Buffer; document: unknown; sha256: string }>();
+  const verifiedAssertions = [];
+  for (const assertion of claim.assertions) {
+    let artifact = cache.get(assertion.artifact);
+    if (!artifact) {
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(assertion.artifact);
+      } catch (error) {
+        throw new Error(`Claim artifact is unavailable: ${assertion.artifact}`, { cause: error });
+      }
+      let document: unknown;
+      try {
+        document = JSON.parse(bytes.toString("utf8"));
+      } catch (error) {
+        throw new Error(`Claim artifact is not valid JSON: ${assertion.artifact}`, { cause: error });
+      }
+      artifact = { bytes, document, sha256: createHash("sha256").update(bytes).digest("hex") };
+      cache.set(assertion.artifact, artifact);
+    }
+    const observed = valueAtJsonPointer(artifact.document, assertion.jsonPointer);
+    if (!isDeepStrictEqual(observed, assertion.value)) {
+      throw new Error(`Claim value mismatch for ${claim.id}: expected ${JSON.stringify(assertion.value)}, observed ${JSON.stringify(observed)}`);
+    }
+    verifiedAssertions.push({ ...assertion, verified: true as const });
+  }
+  return {
+    ...claim,
+    assertions: verifiedAssertions,
+    artifacts: [...cache.entries()].map(([artifact, value]) => ({ artifact, sha256: value.sha256, bytes: value.bytes.length })),
+    verified: true as const,
   };
 }
