@@ -34,4 +34,17 @@ describe("HydraRepository.findClaimsForSources", () => {
     await expect(repository().findClaimsForSources(Array.from({ length: 101 }, (_, index) => `s-${index}`))).rejects.toThrow(/1-100/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("aborts a stalled Hydra request at the configured deadline", async () => {
+    const fetchMock = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const timedRepository = new HydraRepository({
+      httpUrl: "http://hydra.test", token: "token", graphId: "default", namespace: "default", cellId: "cell-0", requestTimeoutMs: 5,
+    });
+
+    await expect(timedRepository.findClaimsForSources(["source-a"])).rejects.toThrow(/timeout/i);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
 });

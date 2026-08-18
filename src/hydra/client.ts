@@ -93,6 +93,7 @@ export interface HydraConfig {
   graphId: string;
   namespace: string;
   cellId: string;
+  requestTimeoutMs?: number;
 }
 
 export interface GraphClaimEvidence {
@@ -355,9 +356,14 @@ export function hydraRequestQueryId(
 
 export class HydraRepository {
   private readonly queryUrl: string;
+  private readonly requestTimeoutMs: number;
 
   constructor(private readonly config: HydraConfig) {
     this.queryUrl = `${config.httpUrl.replace(/\/$/, "")}/v1/graphs/${encodeURIComponent(config.graphId)}/query`;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? 30_000;
+    if (!Number.isSafeInteger(this.requestTimeoutMs) || this.requestTimeoutMs < 1 || this.requestTimeoutMs > 300_000) {
+      throw new TypeError("HydraDB request timeout must be an integer from 1 to 300000 milliseconds");
+    }
   }
 
   async close(): Promise<void> {}
@@ -386,6 +392,7 @@ export class HydraRepository {
         parameters,
         consistency,
       }),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     const body = await response.text();
     if (!response.ok) {
