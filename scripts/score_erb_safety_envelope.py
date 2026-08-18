@@ -69,6 +69,13 @@ def score(runtime: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[st
         "incorrectAbstentions": None,
         "incorrectAbstentionsReason": "This audit evaluates context intervention safety, not answer generation; it does not relabel NO_INTERVENTION as an answer abstention.",
         "materiallyDegradedContexts": sum(row["materiallyDegraded"] for row in rows),
+        "rawExpectedRecallReducedContexts": sum(row["materiallyDegraded"] for row in rows),
+        "materiallyDegradedOutsideProvenConflicts": sum(
+            row["materiallyDegraded"] and row["conflictMatch"] is None for row in rows
+        ),
+        "justifiedConflictEvidenceRemovals": sum(
+            len(row["expectedEvidenceRemoved"]) for row in rows if row["conflictMatch"] is not None
+        ),
         "conflictingInfoQuestions": len(conflict_questions),
         "conflictQuestionsIntervened": sum(row["retrievalChanged"] for row in conflict_questions),
         "weakness": "The full-corpus run had no per-query proven HydraDB conflict anchors, so it safely made zero interventions. Conflict efficacy remains measured in the separate live conflict suite.",
