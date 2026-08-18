@@ -59,6 +59,18 @@ class ErbSafetyEnvelopeTests(unittest.TestCase):
         self.assertEqual(report["unsupportedInterventions"], 1)
         self.assertEqual(report["interventionsByCategory"], {"basic": 1})
 
+    def test_expected_evidence_removal_is_exempt_only_for_a_proven_conflict(self):
+        runtime = {"summary": {"unsupportedInterventions": 0}, "results": [{
+            "caseId": "q1", "retrievedDocumentIds": ["d1"], "documentsRemoved": ["d1"], "documentsPinned": [],
+            "retrievalChanged": True, "conflictMatch": None, "matchConfidence": None, "policyVerdict": "UNKNOWN",
+            "lexicalQueryId": "query-1", "hydraQueryIds": [], "groundingLatencyMs": 1,
+            "unsupportedIntervention": True,
+        }]}
+
+        report = score(runtime, {"q1": {"expected_doc_ids": ["d1"], "question_type": "conflicting_info"}})
+
+        self.assertEqual(report["expectedEvidenceRemovedOutsideProvenConflicts"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

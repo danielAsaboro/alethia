@@ -62,7 +62,7 @@ def score(runtime: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[st
         "totalQuestions": len(rows),
         "interventions": len(interventions),
         "interventionsByCategory": intervention_categories,
-        "expectedEvidenceRemovedOutsideProvenConflicts": sum(len(row["expectedEvidenceRemoved"]) for row in rows if row["questionType"] != "conflicting_info"),
+        "expectedEvidenceRemovedOutsideProvenConflicts": sum(len(row["expectedEvidenceRemoved"]) for row in rows if row["conflictMatch"] is None),
         "unsupportedInterventions": sum(row["unsupportedIntervention"] for row in rows),
         "falseConflictMatches": sum(1 for row in rows if row["conflictMatch"] is not None and row["questionType"] != "conflicting_info"),
         "falseNotFound": sum(1 for row in rows if row["policyVerdict"] == "NOT_FOUND" and row["expectedRetrievalRecallBefore"] not in (None, 0)),
