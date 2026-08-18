@@ -40,7 +40,7 @@ export function EvidenceWorkspace({ selected, workspace, status, error }: Worksp
               {workspace.evidence.length ? workspace.evidence.map((item, index) => <article className="quote-card" key={`${item.source}-${index}`}><span className="source-number">{String(index + 1).padStart(2, "0")}</span><div><div className="source-head"><strong>{item.source}</strong>{item.value && <em>{item.value}</em>}</div><blockquote>“{item.quote}”</blockquote></div></article>) : <p className="no-evidence">No claim evidence exists in the covered slice.</p>}
             </section>
             <aside className="decision-stack" aria-label="Decision and coverage">
-              <article><span className="card-icon lavender"><StatusIcon name="shield" /></span><p className="eyebrow">Decision</p><strong>{workspace.decision.status}</strong><p>{workspace.decision.reason}</p>{workspace.decision.policy && <code>{workspace.decision.policy}</code>}</article>
+              <article><span className="card-icon terminal"><StatusIcon name="shield" /></span><p className="eyebrow">Decision</p><strong>{workspace.decision.status}</strong><p>{workspace.decision.reason}</p>{workspace.decision.policy && <code>{workspace.decision.policy}</code>}</article>
               <article className={workspace.coverage.sufficient ? "coverage-ok" : "coverage-warn"}><span className="card-icon mint"><StatusIcon name="database" /></span><p className="eyebrow">Coverage gate</p><strong>{workspace.coverage.sufficient ? "Sufficient" : "Coverage incomplete"}</strong><p>{workspace.coverage.detail}</p></article>
             </aside>
           </div>

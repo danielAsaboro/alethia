@@ -9,7 +9,7 @@ export function OverviewPanel() {
         <p>Cross-examine real enterprise records through a provenance-aware ontology. Every verdict keeps its sources, decisions, coverage boundary, and native HydraDB path in view.</p>
       </div>
       <div className="capability-grid" aria-label="System capabilities">
-        <article><span className="capability-icon lavender"><StatusIcon name="database" /></span><div><strong>Real records</strong><small>ERB + HERB cases</small></div></article>
+        <article><span className="capability-icon terminal"><StatusIcon name="database" /></span><div><strong>Real records</strong><small>ERB + HERB cases</small></div></article>
         <article><span className="capability-icon mint"><StatusIcon name="shield" /></span><div><strong>Fail closed</strong><small>No cached verdicts</small></div></article>
         <article><span className="capability-icon peach"><StatusIcon name="lineage" /></span><div><strong>Graph native</strong><small>Inspectable paths</small></div></article>
         <article><span className="capability-icon blue"><StatusIcon name="spark" /></span><div><strong>Local extraction</strong><small>QVAC inference</small></div></article>
