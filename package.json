@@ -21,6 +21,7 @@
     "safety:score": "python3 scripts/score_erb_safety_envelope.py",
     "causal:freeze": "tsx src/cli/freeze-causal-evaluation.ts",
     "causal:run": "tsx src/cli/run-causal-evaluation.ts",
+    "causal:diagnose": "tsx src/cli/diagnose-causal-evaluation.ts",
     "causal:score": "tsx src/cli/score-causal-evaluation.ts",
     "evaluate:herb": "tsx src/cli/evaluate-herb.ts",
     "hydra:up": "./scripts/hydradb-up.sh",
