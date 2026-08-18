@@ -46,6 +46,18 @@ class ErbSafetyEnvelopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly once"):
             score({"summary": {"unsupportedInterventions": 0}, "results": [result, dict(result)]}, labels)
 
+    def test_scorer_recomputes_unsupported_interventions_from_case_rows(self):
+        runtime = {"summary": {"unsupportedInterventions": 0}, "results": [{
+            "caseId": "q1", "retrievedDocumentIds": ["d1"], "documentsRemoved": ["d1"], "documentsPinned": [],
+            "retrievalChanged": True, "conflictMatch": None, "matchConfidence": None, "policyVerdict": "UNKNOWN",
+            "lexicalQueryId": "query-1", "hydraQueryIds": [], "groundingLatencyMs": 1,
+            "unsupportedIntervention": True,
+        }]}
+
+        report = score(runtime, {"q1": {"expected_doc_ids": ["d1"], "question_type": "basic"}})
+
+        self.assertEqual(report["unsupportedInterventions"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
