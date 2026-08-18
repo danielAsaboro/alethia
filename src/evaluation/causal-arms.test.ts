@@ -54,4 +54,45 @@ describe("buildCausalArms", () => {
     expect(removal.removedDocumentIds).toEqual(["retired"]);
     expect(removal.replacementDocumentIds).toEqual(["distractor-b"]);
   });
+
+  it("does not treat missing current lifecycle assertions as proof that source records are removable", () => {
+    const unknownLifecycleInput: CausalCaseInput = {
+      ...input,
+      documents: input.documents.map((document) => ({ ...document, lifecycle: "unknown" })),
+      graph: {
+        ...input.graph,
+        currentDocumentIds: [],
+        supersededDocumentIds: [],
+      },
+    };
+
+    const full = buildCausalArms(unknownLifecycleInput, "seed-1")
+      .find((arm) => arm.id === "full_sourcetruce_grounding")!;
+
+    expect(full.documents.map((document) => document.id)).toEqual(["current", "retired"]);
+    expect(full.removedDocumentIds).toEqual([]);
+    expect(full.replacementDocumentIds).toEqual([]);
+  });
+
+  it("enables conflict reconciliation only where the arm contract requires it", () => {
+    const arms = new Map(buildCausalArms(input, "seed-1").map((arm) => [arm.id, arm]));
+
+    expect(arms.get("full_sourcetruce_grounding")?.promptMetadata.reconcileConflicts).toBe(true);
+    expect(arms.get("prompt_only_conflict_reconciliation")?.promptMetadata.reconcileConflicts).toBe(true);
+    expect(arms.get("no_conflict_policy")?.promptMetadata.reconcileConflicts).toBe(false);
+    expect(arms.get("no_identity_resolution")?.promptMetadata).toEqual({
+      reconcileConflicts: true,
+      graphGrounded: true,
+      identityResolution: false,
+      ontologyAlignment: true,
+      conflictPolicy: true,
+    });
+    expect(arms.get("no_ontology_alignment")?.promptMetadata).toEqual({
+      reconcileConflicts: true,
+      graphGrounded: true,
+      identityResolution: true,
+      ontologyAlignment: false,
+      conflictPolicy: true,
+    });
+  });
 });

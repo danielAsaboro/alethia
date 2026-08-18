@@ -131,7 +131,7 @@ export function buildCausalArms(input: CausalCaseInput, seed: string): CausalArm
   const randomRemoved = [retrieval[stableIndex(`${seed}:${input.caseId}`, retrieval.length)]!];
   const superseded = unique(input.graph.supersededDocumentIds.filter((id) => retrieval.includes(id)));
   const nonCurrent = retrieval.filter((id) => !input.graph.currentDocumentIds.includes(id));
-  const fullGroundingRemoved = unique([...superseded, ...nonCurrent]);
+  const fullGroundingRemoved = superseded;
   const metadata = (
     graphGrounded: boolean,
     reconcileConflicts = false,
@@ -145,11 +145,11 @@ export function buildCausalArms(input: CausalCaseInput, seed: string): CausalArm
     arm(input, byId, "random_matched_removal", randomRemoved, metadata(false)),
     arm(input, byId, "superseded_evidence_removal", superseded, metadata(true)),
     arm(input, byId, "current_evidence_pinning", nonCurrent, metadata(true)),
-    arm(input, byId, "full_sourcetruce_grounding", fullGroundingRemoved, metadata(true)),
+    arm(input, byId, "full_sourcetruce_grounding", fullGroundingRemoved, metadata(true, true)),
     arm(input, byId, "prompt_only_conflict_reconciliation", [], metadata(false, true)),
     arm(input, byId, "no_hydra", [], metadata(false)),
-    arm(input, byId, "no_identity_resolution", fullGroundingRemoved, metadata(true, false, false)),
-    arm(input, byId, "no_ontology_alignment", fullGroundingRemoved, metadata(true, false, true, false)),
+    arm(input, byId, "no_identity_resolution", fullGroundingRemoved, metadata(true, true, false)),
+    arm(input, byId, "no_ontology_alignment", fullGroundingRemoved, metadata(true, true, true, false)),
     arm(input, byId, "no_conflict_policy", [], metadata(true, false, true, true, false)),
   ];
 }
