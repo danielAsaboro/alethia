@@ -40,6 +40,17 @@ describe("causal generation contract", () => {
     expect(() => buildCausalGenerationRequest(arm, -1)).toThrow(/padding/i);
   });
 
+  it("gives every arm an explicit verdict-to-answer contract", () => {
+    const prompt = JSON.parse(buildCausalGenerationRequest(arm).prompt);
+
+    expect(prompt.responseContract).toEqual({
+      supported: "answer must be non-empty",
+      disputed: "answer must be exactly empty string",
+      unknown: "answer must be exactly empty string",
+      notFound: "answer must be exactly empty string",
+    });
+  });
+
   it("accepts only grounded structured answers with known evidence IDs", () => {
     expect(validateCausalGenerationResponse(
       '{"answer":"30%","verdict":"SUPPORTED","evidenceDocumentIds":["doc-1"]}',

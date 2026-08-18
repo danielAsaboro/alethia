@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 
 import type { CausalArm } from "./causal-arms";
 
-export const CAUSAL_PROMPT_VERSION = "causal-answer-v1";
+export const CAUSAL_PROMPT_VERSION = "causal-answer-v2";
 export const CAUSAL_SYSTEM_PROMPT =
-  'Answer only from the supplied enterprise records. Return one minified JSON object: {"answer":"concise answer or empty string","verdict":"SUPPORTED|DISPUTED|UNKNOWN|NOT_FOUND","evidenceDocumentIds":["document IDs"]}. Cite only supplied document IDs. When records disagree and the supplied treatment does not establish a controlling current record, return DISPUTED with an empty answer. Return UNKNOWN with an empty answer when evidence is insufficient. Do not infer missing facts.';
+  'Answer only from the supplied enterprise records. Return one minified JSON object: {"answer":"concise answer or empty string","verdict":"SUPPORTED|DISPUTED|UNKNOWN|NOT_FOUND","evidenceDocumentIds":["document IDs"]}. Cite only supplied document IDs. The answer must be non-empty only when verdict is SUPPORTED. For DISPUTED, UNKNOWN, or NOT_FOUND, answer must be exactly the empty string, never a candidate answer. When records disagree and the supplied treatment does not establish a controlling current record, return DISPUTED. Return UNKNOWN when evidence is insufficient. Do not infer missing facts.';
 
 export interface CausalGenerationResponse {
   answer: string;
@@ -23,6 +23,12 @@ export function buildCausalGenerationRequest(arm: CausalArm, paddingTokens = 0) 
       identityResolution: arm.promptMetadata.identityResolution,
       ontologyAlignment: arm.promptMetadata.ontologyAlignment,
       conflictPolicy: arm.promptMetadata.conflictPolicy,
+    },
+    responseContract: {
+      supported: "answer must be non-empty",
+      disputed: "answer must be exactly empty string",
+      unknown: "answer must be exactly empty string",
+      notFound: "answer must be exactly empty string",
     },
     question: arm.question,
     documents: arm.documents.map((document) => ({
