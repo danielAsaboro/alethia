@@ -52,12 +52,16 @@ def score(runtime: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[st
             "materiallyDegraded": before_recall is not None and after_recall is not None and after_recall < before_recall,
         })
     interventions = [row for row in rows if row["retrievalChanged"]]
+    intervention_categories = {
+        category: sum(row["questionType"] == category for row in interventions)
+        for category in sorted({row["questionType"] for row in interventions})
+    }
     conflict_questions = [row for row in rows if row["questionType"] == "conflicting_info"]
     recall_values = [row["expectedRetrievalRecallBefore"] for row in rows if row["expectedRetrievalRecallBefore"] is not None]
     return {
         "totalQuestions": len(rows),
         "interventions": len(interventions),
-        "interventionsByCategory": {},
+        "interventionsByCategory": intervention_categories,
         "expectedEvidenceRemovedOutsideProvenConflicts": sum(len(row["expectedEvidenceRemoved"]) for row in rows if row["questionType"] != "conflicting_info"),
         "unsupportedInterventions": sum(row["unsupportedIntervention"] for row in rows),
         "falseConflictMatches": sum(1 for row in rows if row["conflictMatch"] is not None and row["questionType"] != "conflicting_info"),

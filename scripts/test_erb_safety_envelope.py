@@ -57,6 +57,7 @@ class ErbSafetyEnvelopeTests(unittest.TestCase):
         report = score(runtime, {"q1": {"expected_doc_ids": ["d1"], "question_type": "basic"}})
 
         self.assertEqual(report["unsupportedInterventions"], 1)
+        self.assertEqual(report["interventionsByCategory"], {"basic": 1})
 
 
 if __name__ == "__main__":
