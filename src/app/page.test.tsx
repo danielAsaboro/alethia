@@ -6,11 +6,15 @@ import { EvidenceWorkspace } from "./components/evidence-workspace";
 import Home from "./page";
 
 describe("SourceTruce evidence court", () => {
-  it("renders all eleven one-click cases without ontology implementation inputs", () => {
+  it("renders an evidence console with all eleven real cases and no ontology implementation inputs", () => {
     const html = renderToStaticMarkup(<Home />);
 
     expect(html).toContain("SourceTruce");
-    expect(html).toContain("Enterprise evidence court");
+    expect(html).toContain('aria-label="SourceTruce application header"');
+    expect(html).toContain('aria-label="Judge cases"');
+    expect(html).toContain('aria-label="Evidence workspace"');
+    expect(html).toContain("Evidence lineage console");
+    expect(html).toContain("Selected question");
     expect(html).toContain("Resolve a conflict");
     expect(html).toContain("Prove a supersession");
     expect(html).toContain("Disambiguate owner semantics");
@@ -26,6 +30,7 @@ describe("SourceTruce evidence court", () => {
     expect(html).not.toContain('class="case-index">010</span>');
     expect(html).toContain("what would change it");
     expect(html).toContain("Fail closed");
+    expect(html).toContain("Live HydraDB query");
     expect(html).not.toContain("Canonical entity ID");
     expect(html).not.toContain("Coverage family");
     expect(html).not.toContain(">Predicate<");
@@ -70,6 +75,9 @@ describe("SourceTruce evidence court", () => {
     expect(visibleText).toContain("1 round trip");
     expect(html).toContain("sourcetruce-read-test");
     expect(html).toContain("claim_30 → source_policy");
+    expect(html).toContain("sgk:test:1236");
+    expect(html).toContain('aria-label="HydraDB lineage path"');
+    expect(html).toContain("SUPPORTED_BY");
   });
 
   it("renders disputed evidence, resolution requirements, abstention, loading, and actionable errors", () => {
@@ -93,8 +101,10 @@ describe("SourceTruce evidence court", () => {
 
     expect(disputed).toContain("DISPUTED");
     expect(disputed).toContain("jira · native-1");
+    expect(disputed).toContain("Conflict visibility");
     expect(disputed).toContain("What would change this?");
     expect(unknown).toContain("UNKNOWN");
+    expect(unknown).toContain("Coverage incomplete");
     expect(unknown).toContain("No claim evidence exists");
     expect(loading).toContain('role="status"');
     expect(error).toContain('role="alert"');
