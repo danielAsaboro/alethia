@@ -31,6 +31,33 @@ describe("scoreCausalResults", () => {
       invalidExtraEvidence: 0, unsupportedAnswerRate: 0, currentValueSurfaced: 1,
       hydraQueryCount: 2,
     });
-    expect(report.parity).toEqual({ contextDocumentCounts: [2], contextTokenBudgets: [10], wordBudgetPassed: true, modelInputTokenCounts: [101, 103], modelInputTokenPassed: false });
+    expect(report.parity).toMatchObject({ contextDocumentCounts: [2], contextTokenBudgets: [10], wordBudgetPassed: true, modelInputTokenCounts: [101, 103], modelInputTokenPassed: false });
+  });
+
+  it("distinguishes matched, mismatched, and unverifiable model-input token cases", () => {
+    const row = (caseId: string, armId: string, modelInputTokens: number | null) => ({
+      caseId, armId, status: modelInputTokens === null ? "failed" as const : "completed" as const,
+      latencyMs: 1, contextDocumentCount: 2, contextTokenBudget: 10, hydraQueryCount: 0,
+      modelInputTokens, response: null,
+    });
+    const report = scoreCausalResults({
+      rows: [
+        row("matched", "a", 97), row("matched", "b", 97),
+        row("mismatched", "a", 101), row("mismatched", "b", 103),
+        row("unverifiable", "a", null), row("unverifiable", "b", 88),
+      ],
+      labels: ["matched", "mismatched", "unverifiable"].map((caseId) => ({ caseId, expectedDocumentIds: [] })),
+      judgments: [],
+      retiredValues: new Map(),
+    });
+
+    expect(report.parity).toMatchObject({
+      modelInputTokenComparableCases: 2,
+      modelInputTokenMatchedCases: 1,
+      modelInputTokenMismatchedCaseIds: ["mismatched"],
+      modelInputTokenUnverifiableCaseIds: ["unverifiable"],
+      modelInputTokenPassedForComparableCases: false,
+      modelInputTokenPassed: false,
+    });
   });
 });

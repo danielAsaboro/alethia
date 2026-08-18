@@ -106,12 +106,31 @@ export function scoreCausalResults(input: {
     return new Set(rows.map((row) => row.contextDocumentCount)).size === 1 && new Set(rows.map((row) => row.contextTokenBudget)).size === 1;
   });
   const modelInputTokenCounts = [...new Set(input.rows.map((row) => row.modelInputTokens).filter((value): value is number => value !== null))].sort((a, b) => a - b);
-  const modelInputTokenPassed = caseIds.every((caseId) => {
+  const modelInputTokenMismatchedCaseIds: string[] = [];
+  const modelInputTokenUnverifiableCaseIds: string[] = [];
+  let modelInputTokenMatchedCases = 0;
+  for (const caseId of caseIds) {
     const values = input.rows.filter((row) => row.caseId === caseId).map((row) => row.modelInputTokens);
-    return values.every((value) => value !== null) && new Set(values).size === 1;
-  });
+    if (values.some((value) => value === null)) modelInputTokenUnverifiableCaseIds.push(caseId);
+    else if (new Set(values).size === 1) modelInputTokenMatchedCases += 1;
+    else modelInputTokenMismatchedCaseIds.push(caseId);
+  }
+  const modelInputTokenComparableCases = modelInputTokenMatchedCases + modelInputTokenMismatchedCaseIds.length;
+  const modelInputTokenPassedForComparableCases = modelInputTokenComparableCases > 0 && modelInputTokenMismatchedCaseIds.length === 0;
+  const modelInputTokenPassed = modelInputTokenPassedForComparableCases && modelInputTokenUnverifiableCaseIds.length === 0;
   return {
     arms,
-    parity: { contextDocumentCounts, contextTokenBudgets, wordBudgetPassed, modelInputTokenCounts, modelInputTokenPassed },
+    parity: {
+      contextDocumentCounts,
+      contextTokenBudgets,
+      wordBudgetPassed,
+      modelInputTokenCounts,
+      modelInputTokenComparableCases,
+      modelInputTokenMatchedCases,
+      modelInputTokenMismatchedCaseIds,
+      modelInputTokenUnverifiableCaseIds,
+      modelInputTokenPassedForComparableCases,
+      modelInputTokenPassed,
+    },
   };
 }

@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { CausalCaseInput } from "@/evaluation/causal-arms";
+import { indexCausalJudgmentCache, type CachedCausalJudgeFailure } from "@/evaluation/causal-judgment-cache";
 import { scoreCausalResults } from "@/evaluation/causal-score";
 import { EvaluationJudgeMalformedOutputError, QvacEvaluationJudge } from "@/qvac/evaluation-judge";
 
@@ -71,23 +72,38 @@ async function main() {
   }
   const judge = new QvacEvaluationJudge();
   const judgments: Array<{ caseId: string; answer: string; correct: boolean; completeness: number; rawOutput: string; latencyMs: number; reused?: boolean }> = [];
-  const judgeFailures = [];
+  const judgeFailures: CachedCausalJudgeFailure[] = [];
   let judgmentCacheSha256: string | null = null;
   const cached = new Map<string, typeof judgments[number]>();
+  const cachedFailures = new Map<string, CachedCausalJudgeFailure>();
   if (args.judgmentsFrom) {
     const cacheBytes = await readFile(path.resolve(args.judgmentsFrom));
-    const cacheArtifact = JSON.parse(cacheBytes.toString("utf8")) as { judge?: { model?: unknown }; judgments?: Array<Record<string, unknown>> };
-    if (cacheArtifact.judge?.model !== "sourcetruce-extractor" || !Array.isArray(cacheArtifact.judgments)) throw new TypeError("Prior causal judgment cache is incompatible");
+    const cacheArtifact = JSON.parse(cacheBytes.toString("utf8")) as { judge?: { model?: unknown }; judgments?: Array<Record<string, unknown>>; judgeFailures?: Array<Record<string, unknown>> };
+    if (cacheArtifact.judge?.model !== "sourcetruce-extractor" || !Array.isArray(cacheArtifact.judgments) || !Array.isArray(cacheArtifact.judgeFailures)) throw new TypeError("Prior causal judgment cache is incompatible");
+    const validatedJudgments = [];
     for (const row of cacheArtifact.judgments) {
       if (typeof row.caseId !== "string" || typeof row.answer !== "string" || typeof row.correct !== "boolean" || typeof row.completeness !== "number" || typeof row.rawOutput !== "string" || typeof row.latencyMs !== "number") throw new TypeError("Prior causal judgment cache contains a malformed judgment");
-      cached.set(`${row.caseId}\0${normalized(row.answer)}`, { caseId: row.caseId, answer: row.answer, correct: row.correct, completeness: row.completeness, rawOutput: row.rawOutput, latencyMs: row.latencyMs, reused: true });
+      validatedJudgments.push({ caseId: row.caseId, answer: row.answer, correct: row.correct, completeness: row.completeness, rawOutput: row.rawOutput, latencyMs: row.latencyMs });
     }
+    const validatedFailures = cacheArtifact.judgeFailures.map((row) => {
+      if (typeof row.caseId !== "string" || typeof row.answer !== "string" || typeof row.error !== "string" || !(typeof row.rawOutput === "string" || row.rawOutput === null)) throw new TypeError("Prior causal judgment cache contains a malformed judge failure");
+      return { caseId: row.caseId, answer: row.answer, error: row.error, rawOutput: row.rawOutput };
+    });
+    const indexed = indexCausalJudgmentCache({ judgments: validatedJudgments, judgeFailures: validatedFailures });
+    for (const [key, value] of indexed.judgments) cached.set(key, value);
+    for (const [key, value] of indexed.failures) cachedFailures.set(key, value);
     judgmentCacheSha256 = digest(cacheBytes);
   }
   for (const answer of uniqueAnswers.values()) {
-    const cachedJudgment = cached.get(`${answer.caseId}\0${normalized(answer.answer)}`);
+    const cacheKey = `${answer.caseId}\0${normalized(answer.answer)}`;
+    const cachedJudgment = cached.get(cacheKey);
     if (cachedJudgment) {
       judgments.push(cachedJudgment);
+      continue;
+    }
+    const cachedFailure = cachedFailures.get(cacheKey);
+    if (cachedFailure) {
+      judgeFailures.push(cachedFailure);
       continue;
     }
     const label = labelById.get(answer.caseId)!;
@@ -116,7 +132,7 @@ async function main() {
   const artifact = {
     schemaVersion: 1, generatedAt: new Date().toISOString(), runtimeResultsSha256: digest(resultsBytes), labelsSha256: digest(labelsBytes),
     labelsOpenedAfterRuntime: true, scope: "19 promoted ERB conflict cases; labeled development causal evaluation, not unseen generalization evidence",
-    judge: { model: "sourcetruce-extractor", uniqueAnswers: uniqueAnswers.size, scored: judgments.length, reused: judgments.filter((row) => row.reused).length, fresh: judgments.filter((row) => !row.reused).length, failures: judgeFailures.length, judgmentCacheSha256 },
+    judge: { model: "sourcetruce-extractor", uniqueAnswers: uniqueAnswers.size, scored: judgments.length, reused: judgments.filter((row) => row.reused).length, fresh: judgments.filter((row) => !row.reused).length, failures: judgeFailures.length, reusedFailures: judgeFailures.filter((row) => row.reused).length, judgmentCacheSha256 },
     report, judgments, judgeFailures,
   };
   const output = path.resolve(args.output);
