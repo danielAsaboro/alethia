@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { listJudgeCases } from "@/cases/case-registry";
 import { EvidenceWorkspace } from "./components/evidence-workspace";
-import Home from "./page";
+import Home, { SourceTruceApp } from "./page";
 
 describe("SourceTruce evidence court", () => {
   it("renders an evidence console with all eleven real cases and no ontology implementation inputs", () => {
@@ -30,10 +30,19 @@ describe("SourceTruce evidence court", () => {
     expect(html).not.toContain('class="case-index">010</span>');
     expect(html).toContain("what would change it");
     expect(html).toContain("Fail closed");
-    expect(html).toContain("Live HydraDB query");
+    expect(html).toContain("System unverified");
+    expect(html).toContain("Ready for live query");
     expect(html).not.toContain("Canonical entity ID");
     expect(html).not.toContain("Coverage family");
     expect(html).not.toContain(">Predicate<");
+  });
+
+  it("renders an honest empty manifest state without dereferencing a selected case", () => {
+    const html = renderToStaticMarkup(<SourceTruceApp cases={[]} />);
+
+    expect(html).toContain("No judge cases are configured");
+    expect(html).toContain("No question selected");
+    expect(html).not.toContain('aria-label="Evidence workspace"');
   });
 
   it("renders the live HydraDB native path proof returned by the API", () => {
@@ -78,6 +87,8 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain("sgk:test:1236");
     expect(html).toContain('aria-label="HydraDB lineage path"');
     expect(html).toContain("SUPPORTED_BY");
+    expect(html).not.toContain("Node 1");
+    expect(html).not.toContain('class="lineage-node source-node">Query');
   });
 
   it("renders disputed evidence, resolution requirements, abstention, loading, and actionable errors", () => {

@@ -9,10 +9,7 @@ export function LineagePath({ proof, traversal }: { proof: WorkspaceResult["grap
         <span className="consistency-badge"><i />{proof.consistency} consistency</span>
       </div>
       <div className="lineage-flow" aria-label={`Relationship sequence: ${proof.relationshipTypes.join(" to ")}`}>
-        <span className="lineage-node source-node">Query</span>
-        {proof.relationshipTypes.map((relationship, index) => (
-          <span className="lineage-step" key={`${relationship}-${index}`}><span className="connector" /><em>{relationship}</em><span className="lineage-node">{index === proof.relationshipTypes.length - 1 ? "Evidence" : `Node ${index + 1}`}</span></span>
-        ))}
+        {proof.relationshipTypes.map((relationship, index) => <span className="relationship-chip" key={`${relationship}-${index}`}>{relationship}</span>)}
       </div>
       <code className="lineage-path-code">{proof.path}</code>
       <dl className="lineage-metrics">

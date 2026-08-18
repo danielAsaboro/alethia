@@ -45,6 +45,10 @@ a:focus-visible, button:focus-visible { outline: 3px solid rgba(116,103,232,.38)
 .system-state strong { font-size: .7rem; }
 .system-state small { color: var(--muted); font-size: .6rem; margin-top: .15rem; }
 .pulse, .live-query i, .consistency-badge i { background: #3fb877; border-radius: 50%; box-shadow: 0 0 0 4px rgba(63,184,119,.13); display: inline-block; height: .45rem; width: .45rem; }
+.system-state.unverified .pulse, .live-query.idle i { background: #9ca0b1; box-shadow: 0 0 0 4px rgba(156,160,177,.13); }
+.system-state.loading .pulse, .live-query.loading i { animation: pulse-status 1.25s ease-in-out infinite; background: #c38d25; box-shadow: 0 0 0 4px rgba(195,141,37,.14); }
+.system-state.error .pulse, .live-query.error i { background: var(--red); box-shadow: 0 0 0 4px rgba(182,74,85,.12); }
+@keyframes pulse-status { 50% { opacity: .35; } }
 
 .overview-panel { align-items: end; display: grid; gap: 3rem; grid-template-columns: 1.2fr .8fr; padding: clamp(2.6rem, 6vw, 5.2rem) clamp(.25rem, 2vw, 1.8rem) 2rem; }
 .overview-copy h1 { font-size: clamp(2.4rem, 4.8vw, 5.1rem); letter-spacing: -.065em; line-height: .96; margin: 0; }
@@ -91,6 +95,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid rgba(116,103,232,.38)
 .evidence-court { min-height: 40rem; overflow: hidden; }
 .workspace-header { align-items: flex-start; border-bottom: 1px solid var(--line); display: flex; gap: 2rem; justify-content: space-between; padding: 1.3rem 1.5rem; }
 .workspace-header h2 { font-size: clamp(1.05rem, 2vw, 1.55rem); letter-spacing: -.035em; line-height: 1.28; margin: 0; max-width: 42ch; }
+.question-context { color: var(--muted); font-size: .6rem; margin: .55rem 0 0; text-transform: capitalize; }
 .live-query, .consistency-badge { align-items: center; background: var(--green-soft); border-radius: 999px; color: var(--green); display: flex; flex: 0 0 auto; font-size: .58rem; font-weight: 750; gap: .5rem; padding: .48rem .65rem; text-transform: uppercase; }
 .workspace-state { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 30rem; padding: 3rem; text-align: center; }
 .workspace-state .state-icon { background: var(--violet-soft); color: var(--violet); height: 3.6rem; margin-bottom: 1.15rem; width: 3.6rem; }
@@ -143,13 +148,8 @@ blockquote { color: #50556a; font-family: ui-serif, Georgia, serif; font-size: .
 .lineage-head .eyebrow { color: #9296aa; margin-bottom: .25rem; }
 .lineage-head h3 { color: #c5c0ff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; margin: 0; }
 .consistency-badge { background: rgba(47,150,101,.15); color: #7ed6a7; }
-.lineage-flow { align-items: center; display: flex; margin: 1.4rem 0 1rem; min-height: 4.5rem; overflow-x: auto; padding: .5rem .25rem 1.2rem; }
-.lineage-node { align-items: center; background: #343748; border: 1px solid #4b4e62; border-radius: .55rem; display: flex; flex: 0 0 auto; font-size: .62rem; font-weight: 700; justify-content: center; min-height: 2.35rem; min-width: 5rem; padding: .45rem .65rem; }
-.source-node { background: var(--violet); border-color: #968cf3; }
-.lineage-step { align-items: center; display: flex; flex: 0 0 auto; position: relative; }
-.connector { background: #56596c; display: block; height: 1px; position: relative; width: 3.3rem; }
-.connector::after { border-bottom: 3px solid transparent; border-left: 5px solid #777b90; border-top: 3px solid transparent; content: ""; position: absolute; right: 0; top: -2px; }
-.lineage-step em { color: #aaa2ff; font-size: .48rem; font-style: normal; left: 50%; position: absolute; top: calc(50% + 1.15rem); transform: translateX(-50%); white-space: nowrap; }
+.lineage-flow { align-items: center; display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.15rem 0 .75rem; }
+.relationship-chip { background: rgba(116,103,232,.16); border: 1px solid rgba(170,162,255,.35); border-radius: 999px; color: #c5c0ff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .52rem; font-weight: 700; padding: .42rem .6rem; }
 .lineage-path-code { background: #1d1f2c; border: 1px solid #343748; border-radius: .55rem; color: #c9ccda; display: block; font-size: .59rem; line-height: 1.5; overflow-wrap: anywhere; padding: .7rem; }
 .lineage-metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin: 1rem 0 0; }
 .lineage-metrics div { border-left: 1px solid #3b3e50; padding: .25rem .8rem; }
@@ -162,6 +162,9 @@ blockquote { color: #50556a; font-family: ui-serif, Georgia, serif; font-size: .
 .lineage-details code { color: #c5c8d6; display: block; font-size: .55rem; margin-top: .3rem; overflow-wrap: anywhere; }
 
 .graph-contract { align-items: start; display: grid; gap: 2rem; grid-template-columns: .65fr 1.35fr; margin-top: 1rem; padding: 2rem 1rem; }
+.no-selection { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 1rem; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: center; min-height: 26rem; padding: 3rem; text-align: center; }
+.no-selection h2 { font-size: 1.3rem; letter-spacing: -.035em; margin: 0; }
+.no-selection > p:last-child { color: var(--muted); font-size: .75rem; }
 .graph-contract h2 { font-size: 1.7rem; letter-spacing: -.05em; line-height: 1.05; margin: 0; max-width: 12ch; }
 .contract-grid { display: grid; gap: .8rem; grid-template-columns: repeat(3, 1fr); }
 .contract-grid article { background: rgba(255,255,255,.68); border: 1px solid var(--line); border-radius: .8rem; min-height: 8.5rem; padding: 1rem; }

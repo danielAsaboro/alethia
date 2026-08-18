@@ -17,11 +17,13 @@ export interface WorkspaceResult {
 type WorkspaceProps = { selected: JudgeCase; workspace: WorkspaceResult | null; status: "idle" | "loading" | "error"; error: string };
 
 export function EvidenceWorkspace({ selected, workspace, status, error }: WorkspaceProps) {
+  const queryLabel = status === "loading" ? "Query in progress" : status === "error" ? "Query unavailable" : workspace ? "Live proof verified" : "Ready for live query";
+  const queryStatus = workspace ? "verified" : status;
   return (
     <section className="evidence-court" aria-label="Evidence workspace" aria-live="polite">
       <header className="workspace-header">
-        <div><p className="eyebrow">Selected question</p><h2>{selected.question}</h2></div>
-        <span className="live-query"><i />Live HydraDB query</span>
+        <div><p className="eyebrow">Selected question</p><h2>{selected.question}</h2><p className="question-context">{selected.dataset} · {selected.version} · {selected.kind.replaceAll("_", " ")}</p></div>
+        <span className={`live-query ${queryStatus}`}><i />{queryLabel}</span>
       </header>
       {status === "loading" && <div className="workspace-state" role="status" aria-label="Running live HydraDB case"><div className="loader" aria-hidden="true" /><p className="eyebrow">Traversing live graph</p><h3>Following claims to their evidence…</h3><p>No cached verdict will be substituted.</p></div>}
       {status === "error" && <div className="workspace-state error-state" role="alert"><span className="state-icon"><StatusIcon name="shield" /></span><p className="eyebrow">Case unavailable</p><h3>No verdict issued</h3><p>{error}</p><p className="error-action">Check HydraDB availability and retry the case. SourceTruce will not substitute a cached answer.</p></div>}
