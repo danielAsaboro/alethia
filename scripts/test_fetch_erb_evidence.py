@@ -20,6 +20,7 @@ QUESTIONS = (
 
 
 class FetchErbEvidenceTest(unittest.TestCase):
+    @unittest.skipUnless(QUESTIONS.is_file(), "private canonical ERB corpus is unavailable")
     def test_conflict_selection_has_twenty_questions_and_39_unique_documents(self):
         selection = load_conflict_selection(QUESTIONS)
 
