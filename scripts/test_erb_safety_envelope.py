@@ -32,6 +32,20 @@ class ErbSafetyEnvelopeTests(unittest.TestCase):
         self.assertEqual(report["materiallyDegradedContexts"], 0)
         self.assertEqual(report["meanExpectedDocumentRecall"], 1)
 
+    def test_scorer_rejects_duplicate_results_that_hide_a_missing_case(self):
+        result = {
+            "caseId": "q1", "retrievedDocumentIds": ["d1"], "documentsRemoved": [], "documentsPinned": [],
+            "retrievalChanged": False, "conflictMatch": None, "matchConfidence": None, "policyVerdict": "NO_INTERVENTION",
+            "lexicalQueryId": "query-1", "hydraQueryIds": [], "groundingLatencyMs": 1,
+        }
+        labels = {
+            "q1": {"expected_doc_ids": ["d1"], "question_type": "basic"},
+            "q2": {"expected_doc_ids": ["d2"], "question_type": "basic"},
+        }
+
+        with self.assertRaisesRegex(ValueError, "exactly once"):
+            score({"summary": {"unsupportedInterventions": 0}, "results": [result, dict(result)]}, labels)
+
 
 if __name__ == "__main__":
     unittest.main()

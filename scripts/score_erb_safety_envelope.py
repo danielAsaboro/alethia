@@ -19,6 +19,9 @@ def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
 
 
 def score(runtime: dict[str, Any], labels: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    result_ids = [result.get("caseId") for result in runtime["results"]]
+    if len(result_ids) != len(set(result_ids)) or set(result_ids) != set(labels):
+        raise ValueError("Safety results must contain every labeled case exactly once")
     rows = []
     for result in runtime["results"]:
         label = labels.get(result["caseId"])
