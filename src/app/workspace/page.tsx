@@ -39,7 +39,7 @@ export function SourceTruceApp({ cases }: { cases: JudgeCase[] }) {
       <section className="court-layout" id="workspace">
         <CasePicker cases={cases} selectedId={selected?.id ?? ""} onRun={runCase} loading={status === "loading"} />
         {selected ? (
-          <EvidenceWorkspace selected={selected} workspace={workspace} status={status} error={error} />
+          <EvidenceWorkspace selected={selected} workspace={workspace} status={status} error={error} onRun={() => runCase(selected)} />
         ) : (
           <section className="no-selection">
             <p className="eyebrow">No question selected</p>

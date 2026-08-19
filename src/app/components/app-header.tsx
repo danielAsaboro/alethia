@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { StatusIcon } from "./status-icon";
+import { NodeFlower } from "./visual-motifs";
 
 type SystemStatus = "unverified" | "loading" | "verified" | "error";
 
@@ -16,8 +16,8 @@ export function AppHeader({ status }: { status: SystemStatus }) {
   return (
     <header className="app-header" aria-label="SourceTruce application header">
       <Link className="brand" href="/" aria-label="SourceTruce home">
-        <span className="brand-mark"><StatusIcon name="lineage" /></span>
-        <span className="brand-copy"><strong>SourceTruce</strong><small>Evidence console</small></span>
+        <NodeFlower className="brand-mark" />
+        <span className="brand-copy"><strong>SourceTruce</strong><small>Evidence console / Atelier</small></span>
       </Link>
       <nav className="primary-nav" aria-label="Workspace sections">
         <a className="active" href="#workspace">Workspace</a>

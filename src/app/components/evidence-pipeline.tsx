@@ -1,3 +1,5 @@
+import { CircleChain } from "./visual-motifs";
+
 const stages = [
   ["Record", "Preserve the enterprise source and its exact evidence."],
   ["Claim", "Represent each asserted value independently."],
@@ -8,14 +10,17 @@ const stages = [
 
 export function EvidencePipeline() {
   return (
-    <ol className="evidence-pipeline" aria-label="Evidence resolution method">
-      {stages.map(([title, detail], index) => (
-        <li key={title}>
-          <span className="pipeline-index">0{index + 1}</span>
-          <strong>{title}</strong>
-          <p>{detail}</p>
-        </li>
-      ))}
-    </ol>
+    <div className="pipeline-wrap">
+      <CircleChain className="pipeline-chain" count={5} striped label="Records resolve through claims, conflicts, decisions, and evidence" />
+      <ol className="evidence-pipeline" aria-label="Evidence resolution method">
+        {stages.map(([title, detail], index) => (
+          <li key={title}>
+            <span className="pipeline-index">0{index + 1}</span>
+            <strong>{title}</strong>
+            <p>{detail}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

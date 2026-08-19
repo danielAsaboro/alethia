@@ -13,6 +13,9 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain('aria-label="SourceTruce application header"');
     expect(html).toContain('aria-label="Judge cases"');
     expect(html).toContain('aria-label="Evidence workspace"');
+    expect(html).toContain('class="case-panel case-strip"');
+    expect(html).toContain('class="question-stage"');
+    expect(html).toContain("Run live case");
     expect(html).toContain("Evidence console");
     expect(html).toContain("Selected question");
     expect(html).toContain("Resolve a conflict");
@@ -79,6 +82,10 @@ describe("SourceTruce evidence court", () => {
     const visibleText = html.replace(/<[^>]+>/g, "");
 
     expect(html).toContain("HydraDB native path");
+    expect(html).toContain('aria-label="Verdict chapter"');
+    expect(html).toContain('aria-label="Evidence provenance chapter"');
+    expect(html).toContain('aria-label="Decision and coverage chapter"');
+    expect(html).toContain('class="lineage-card lineage-canvas"');
     expect(html).toContain("algo.SPpaths");
     expect(html).toContain("strong consistency");
     expect(visibleText).toContain("1 round trip");
@@ -118,6 +125,7 @@ describe("SourceTruce evidence court", () => {
     expect(unknown).toContain("Coverage incomplete");
     expect(unknown).toContain("No claim evidence exists");
     expect(loading).toContain('role="status"');
+    expect(loading).toContain("Evidence path in motion");
     expect(error).toContain('role="alert"');
     expect(error).toContain("Check HydraDB availability and retry the case");
   });
