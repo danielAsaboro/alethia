@@ -3,14 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import { listJudgeCases } from "@/cases/case-registry";
 import { EvidenceWorkspace } from "../components/evidence-workspace";
-import Workspace, { SourceTruceApp } from "./page";
+import Workspace, { AlethiaApp } from "./page";
 
-describe("SourceTruce evidence court", () => {
+describe("Alethia evidence court", () => {
   it("renders an evidence console with all eleven real cases and no ontology implementation inputs", () => {
     const html = renderToStaticMarkup(<Workspace />);
 
-    expect(html).toContain("SourceTruce");
-    expect(html).toContain('aria-label="SourceTruce application header"');
+    expect(html).toContain("Alethia");
+    expect(html).not.toContain("SourceTruce");
+    expect(html).toContain('aria-label="Alethia application header"');
     expect(html).toContain('aria-label="Judge cases"');
     expect(html).toContain('aria-label="Evidence workspace"');
     expect(html).toContain('class="case-panel case-strip"');
@@ -41,7 +42,7 @@ describe("SourceTruce evidence court", () => {
   });
 
   it("renders an honest empty manifest state without dereferencing a selected case", () => {
-    const html = renderToStaticMarkup(<SourceTruceApp cases={[]} />);
+    const html = renderToStaticMarkup(<AlethiaApp cases={[]} />);
 
     expect(html).toContain("No judge cases are configured");
     expect(html).toContain("No question selected");

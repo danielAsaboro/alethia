@@ -44,7 +44,7 @@ export default function Home() {
       </MotionReveal>
 
       <MotionReveal>
-        <section className="capability-section" aria-label="SourceTruce capabilities">
+        <section className="capability-section" aria-label="Alethia capabilities">
           <div className="coverage-figures" aria-label="Coverage states">
             <div><CoverageGlyph sufficient={false} /><span>Incomplete evidence</span></div>
             <div><CoverageGlyph sufficient /><span>Covered slice</span></div>
@@ -105,7 +105,7 @@ export default function Home() {
           <p>Strong-consistency reads return the path, relationship sequence, query ID, epoch, bookmark, latency, and round-trip evidence.</p>
           <Link className="round-cta architecture-cta" href="/workspace"><span>Inspect<br />a path</span><i aria-hidden="true">↗</i></Link>
         </div>
-        <footer><span>Enterprise RAG Bench</span><span>Salesforce HERB</span><strong>SourceTruce</strong></footer>
+        <footer><span>Enterprise RAG Bench</span><span>Salesforce HERB</span><strong>Alethia</strong></footer>
       </section>
     </main>
   );

@@ -43,7 +43,7 @@ img { max-width: 100%; }
 .round-cta:hover { transform: rotate(6deg) scale(1.05); }
 .float-object { animation: object-float 8s ease-in-out infinite; }
 @keyframes object-float { 50% { transform: translate3d(0, -16px, 0) rotate(1.5deg); } }
-.reveal-frame { display: contents; }
+.reveal-frame { display: block; }
 .reveal-frame.motion-enabled > * { opacity: 0; transform: translateY(34px); transition: opacity .75s ease, transform .75s cubic-bezier(.2,.7,.2,1); }
 .reveal-frame.motion-enabled.is-visible > * { opacity: 1; transform: translateY(0); }
 

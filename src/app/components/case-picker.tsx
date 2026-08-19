@@ -16,7 +16,7 @@ export function CasePicker({ cases, selectedId, onRun, loading }: { cases: Judge
           </button>
         ))}
       </nav>
-      <p className="fail-closed"><strong>Fail closed:</strong> if HydraDB is unavailable or the required path is missing, SourceTruce issues no verdict.</p>
+      <p className="fail-closed"><strong>Fail closed:</strong> if HydraDB is unavailable or the required path is missing, Alethia issues no verdict.</p>
     </aside>
   );
 }

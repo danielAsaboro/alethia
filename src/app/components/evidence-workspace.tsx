@@ -55,7 +55,7 @@ export function EvidenceWorkspace({ selected, workspace, status, error, onRun }:
         <div className="workspace-state error-state" role="alert">
           <span className="state-icon"><StatusIcon name="shield" /></span>
           <p className="eyebrow">Case unavailable</p><h3>No verdict issued</h3><p>{error}</p>
-          <p className="error-action">Check HydraDB availability and retry the case. SourceTruce will not substitute a cached answer.</p>
+          <p className="error-action">Check HydraDB availability and retry the case. Alethia will not substitute a cached answer.</p>
         </div>
       )}
       {status === "idle" && !workspace && (

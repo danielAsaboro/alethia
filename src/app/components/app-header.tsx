@@ -14,10 +14,10 @@ const statusCopy: Record<SystemStatus, { label: string; detail: string }> = {
 export function AppHeader({ status }: { status: SystemStatus }) {
   const copy = statusCopy[status];
   return (
-    <header className="app-header" aria-label="SourceTruce application header">
-      <Link className="brand" href="/" aria-label="SourceTruce home">
+    <header className="app-header" aria-label="Alethia application header">
+      <Link className="brand" href="/" aria-label="Alethia home">
         <NodeFlower className="brand-mark" />
-        <span className="brand-copy"><strong>SourceTruce</strong><small>Evidence console / Atelier</small></span>
+        <span className="brand-copy"><strong>Alethia</strong><small>Evidence console / Atelier</small></span>
       </Link>
       <nav className="primary-nav" aria-label="Workspace sections">
         <a className="active" href="#workspace">Workspace</a>

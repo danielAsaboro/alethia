@@ -7,7 +7,7 @@ import { AppHeader } from "../components/app-header";
 import { CasePicker } from "../components/case-picker";
 import { EvidenceWorkspace, type WorkspaceResult } from "../components/evidence-workspace";
 
-export function SourceTruceApp({ cases }: { cases: JudgeCase[] }) {
+export function AlethiaApp({ cases }: { cases: JudgeCase[] }) {
   const [selected, setSelected] = useState<JudgeCase | null>(cases[0] ?? null);
   const [workspace, setWorkspace] = useState<WorkspaceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -53,5 +53,5 @@ export function SourceTruceApp({ cases }: { cases: JudgeCase[] }) {
 }
 
 export default function Workspace() {
-  return <SourceTruceApp cases={listJudgeCases()} />;
+  return <AlethiaApp cases={listJudgeCases()} />;
 }

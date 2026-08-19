@@ -5,9 +5,9 @@ import { NodeFlower } from "./visual-motifs";
 export function LandingHeader() {
   return (
     <header className="landing-header">
-      <a className="landing-brand" href="#top" aria-label="SourceTruce home">
+      <a className="landing-brand" href="#top" aria-label="Alethia home">
         <NodeFlower className="landing-brand-mark" />
-        <span><strong>SourceTruce</strong><small>Evidence, cross-examined</small></span>
+        <span><strong>Alethia</strong><small>Evidence, cross-examined</small></span>
       </a>
       <nav aria-label="Product navigation">
         <a href="#method">Method</a>
