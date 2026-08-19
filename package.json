@@ -23,6 +23,7 @@
     "causal:run": "tsx src/cli/run-causal-evaluation.ts",
     "causal:diagnose": "tsx src/cli/diagnose-causal-evaluation.ts",
     "causal:score": "tsx src/cli/score-causal-evaluation.ts",
+    "proof:conflicts": "tsx src/cli/build-conflict-engineering-proof.ts",
     "evaluate:herb": "tsx src/cli/evaluate-herb.ts",
     "hydra:up": "./scripts/hydradb-up.sh",
     "hydra:down": "docker compose down",
