@@ -167,7 +167,15 @@ export class DeterministicClaimExtractor implements ClaimExtractor {
       );
     }
 
-    if (source.sourceObjectType === "employee") {
+    if (source.sourceObjectType === "document") {
+      const title = stringField(source, "title");
+      const dataset = stringField(source, "dataset");
+      const contentDigest = stringField(source, "contentDigest");
+      if (title) claims.push(claim(source, subjectEntityId, "document_title", { kind: "literal", value: title }));
+      claims.push(claim(source, subjectEntityId, "origin_system", { kind: "literal", value: source.sourceSystem }));
+      if (dataset) claims.push(claim(source, subjectEntityId, "part_of_dataset", { kind: "literal", value: dataset }));
+      if (contentDigest) claims.push(claim(source, subjectEntityId, "content_digest", { kind: "literal", value: contentDigest }));
+    } else if (source.sourceObjectType === "employee") {
       const role = stringField(source, "role");
       const location = stringField(source, "location");
       const organization = stringField(source, "organization");
