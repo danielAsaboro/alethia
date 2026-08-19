@@ -25,7 +25,7 @@ export function EvidenceWorkspace({ selected, workspace, status, error }: { sele
     <section className="evidence-court" aria-live="polite">
       <div className="section-heading"><span>02</span><div><p className="eyebrow">Live Hydra workspace</p><h2>Verdict, evidence, and what would change it</h2></div></div>
       {status === "loading" && <div className="court-empty" role="status" aria-label="Running live HydraDB case"><div className="loader" aria-hidden="true" /><h3>Traversing the evidence graph…</h3><p>No cached verdict will be substituted.</p></div>}
-      {status === "error" && <div className="error-state" role="alert"><p className="eyebrow">Case unavailable</p><h3>No verdict issued</h3><p>{error}</p><p className="error-action">Check HydraDB availability and retry the case. SourceTruce will not substitute a cached answer.</p></div>}
+      {status === "error" && <div className="error-state" role="alert"><p className="eyebrow">Case unavailable</p><h3>No verdict issued</h3><p>{error}</p><p className="error-action">Check HydraDB availability and retry the case. Alethia will not substitute a cached answer.</p></div>}
       {status === "idle" && !workspace && <div className="court-empty"><span className="empty-glyph">↗</span><h3>{selected.question}</h3><p>Select the highlighted case to run it against live HydraDB.</p></div>}
       {workspace && (
         <div className="workspace-result">

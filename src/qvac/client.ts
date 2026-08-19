@@ -152,7 +152,7 @@ export class QvacClient {
     private readonly baseUrl = process.env.QVAC_BASE_URL ??
       "http://127.0.0.1:11436/v1",
     private readonly model = process.env.QVAC_MODEL ??
-      "sourcetruce-extractor",
+      "alethia-extractor",
   ) {}
 
   async extractClaims(input: QvacExtractionInput): Promise<QvacExtractionResult> {

@@ -96,7 +96,7 @@ describe("runIngestion", () => {
   });
 
   it("records invalid JSON as failed coverage instead of success", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-herb-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "alethia-herb-"));
     temporaryDirectories.push(directory);
     const invalidPath = path.join(directory, "employee.json");
     await writeFile(invalidPath, "{not valid json", "utf8");

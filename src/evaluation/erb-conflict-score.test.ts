@@ -10,7 +10,7 @@ import {
 const runtime: FrozenConflictRuntime = {
   schemaVersion: 1,
   manifestDigest: "a".repeat(64),
-  runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v7" },
+  runtime: { model: "alethia-extractor", promptVersion: "conflict-observation-v7" },
   summary: { attempted: 3, completed: 2, rejected: 1, failed: 0 },
   cases: [
     {

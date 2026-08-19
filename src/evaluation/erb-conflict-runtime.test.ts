@@ -30,7 +30,7 @@ function runtimeInputs(
 ): { extraction: ConflictExtractionArtifact; promotions: ConflictPromotion[] } {
   const extraction: ConflictExtractionArtifact = {
     schemaVersion: 1,
-    runtime: { model: "sourcetruce-extractor", promptVersion: manifest.promptVersion },
+    runtime: { model: "alethia-extractor", promptVersion: manifest.promptVersion },
     cases: manifest.cases.map((item) => ({
       questionId: item.questionId,
       question: item.question,

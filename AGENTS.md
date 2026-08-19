@@ -11,7 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Hack Hydra public repository rules
 
 - This is the only public/submittable repository. Keep private research, downloaded corpora, submission evidence, and internal plans in the parent workspace.
-- Build Track 01 SourceTruce as a real ingestion-to-answer product. HydraDB must store/query the ontology and perform meaningful graph-native work.
+- Build Track 01 Alethia as a real ingestion-to-answer product. HydraDB must store/query the ontology and perform meaningful graph-native work.
 - Use real Enterprise RAG Bench and/or HERB data for claimed ingestion, evaluation, and demo behavior. Do not ship mocks, fake integrations, placeholder success paths, or invented benchmark results.
 - Preserve aliases, claims, provenance, time, contradictions, supersession, and abstention as inspectable behavior.
 - Keep the README, setup/run instructions, HydraDB explanation, environment/dependency details, third-party attribution, and open-source license complete.

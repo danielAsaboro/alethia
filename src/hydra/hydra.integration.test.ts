@@ -266,7 +266,7 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
     expect(nativePaths[0]).toMatchObject({
       operation: "algo.SPpaths",
       consistency: "strong",
-      queryId: expect.stringMatching(/^sourcetruce-read-/),
+      queryId: expect.stringMatching(/^alethia-read-/),
       readEpoch: expect.any(Number),
       bookmark: expect.stringMatching(/^sgk:/),
       roundTrips: 1,
@@ -354,11 +354,11 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
           sourceObjectId: extraction.sourceObjectId,
           sourceSystem: extraction.sourceSystem,
           extractionMethod: "qvac",
-          extractorVersion: "qvac:sourcetruce-extractor:v7",
+          extractorVersion: "qvac:alethia-extractor:v7",
         },
         evidenceQuote: extraction.observation!.evidenceQuote,
         method: "qvac",
-        extractorVersion: "qvac:sourcetruce-extractor:v7",
+        extractorVersion: "qvac:alethia-extractor:v7",
       }),
     );
     const consolidated = consolidateClaims(inputObservations);
@@ -430,7 +430,7 @@ describe.runIf(runIntegration)("HydraRepository against HydraDB OSS", () => {
         proposalObservation.claimCandidate.id,
       ]),
       policyId,
-      queryIds: [expect.stringMatching(/^sourcetruce-read-/), expect.stringMatching(/^sourcetruce-read-/)],
+      queryIds: [expect.stringMatching(/^alethia-read-/), expect.stringMatching(/^alethia-read-/)],
       roundTrips: 2,
       consistency: "strong",
     });

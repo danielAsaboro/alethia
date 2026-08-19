@@ -70,7 +70,7 @@ async function main() {
     parityCalibrationSha256 = createHash("sha256").update(calibrationBytes).digest("hex");
   }
   const baseUrl = process.env.QVAC_BASE_URL ?? "http://127.0.0.1:11436/v1";
-  const modelName = process.env.QVAC_MODEL ?? "sourcetruce-extractor";
+  const modelName = process.env.QVAC_MODEL ?? "alethia-extractor";
   const qvac = createQvac({ baseURL: baseUrl.replace(/\/$/, ""), apiKey: process.env.QVAC_API_KEY ?? "local-loopback-only" });
   const model = qvac(modelName);
   const results = [];

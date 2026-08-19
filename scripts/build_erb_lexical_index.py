@@ -55,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.input.is_file() or not args.ontology_ledger.is_file():
         raise FileNotFoundError("Input Parquet and ontology ledger are required")
     args.database.parent.mkdir(parents=True, exist_ok=True)
-    extension_directory = os.environ.get("SOURCETRUCE_DUCKDB_EXTENSION_DIRECTORY")
+    extension_directory = os.environ.get("ALETHIA_DUCKDB_EXTENSION_DIRECTORY")
     config = {"extension_directory": extension_directory} if extension_directory else {}
     connection = duckdb.connect(str(args.database), config=config)
     connection.execute("INSTALL fts")

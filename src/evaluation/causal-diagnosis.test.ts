@@ -52,7 +52,7 @@ describe("diagnoseCausalRun", () => {
 
   test("classifies structural conflict-policy, context-budget, timeout, and scorer failures without correctness labels", () => {
     const rows = completeRows();
-    const full = rows.find((row) => row.armId === "full_sourcetruce_grounding")!;
+    const full = rows.find((row) => row.armId === "full_alethia_grounding")!;
     full.contextDocumentIds = ["distractor"];
     full.removedDocumentIds = ["old", "new"];
     full.replacementDocumentIds = ["distractor"];

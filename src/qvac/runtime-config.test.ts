@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 describe("QVAC runtime config rendering", () => {
   it("supports a validated context-size override without changing the model path", () => {
-    const temporaryDirectory = mkdtempSync(path.join(os.tmpdir(), "sourcetruce-qvac-"));
+    const temporaryDirectory = mkdtempSync(path.join(os.tmpdir(), "alethia-qvac-"));
     const outputPath = path.join(temporaryDirectory, "runtime.json");
     execFileSync(process.execPath, ["scripts/render-qvac-runtime-config.mjs"], {
       cwd: path.resolve("."),
@@ -21,8 +21,8 @@ describe("QVAC runtime config rendering", () => {
       serve: { models: Record<string, { src: string; config: Record<string, unknown> }> };
     };
 
-    expect(config.serve.models["sourcetruce-extractor"].config.ctx_size).toBe(32768);
-    expect(config.serve.models["sourcetruce-extractor"].src).toBe(
+    expect(config.serve.models["alethia-extractor"].config.ctx_size).toBe(32768);
+    expect(config.serve.models["alethia-extractor"].src).toBe(
       path.resolve(".local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf"),
     );
   });

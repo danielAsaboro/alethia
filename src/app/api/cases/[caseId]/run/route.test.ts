@@ -9,8 +9,8 @@ const mockedRunJudgeCase = vi.mocked(runJudgeCase);
 const graphProof = {
   operation: "algo.SPpaths" as const,
   consistency: "strong" as const,
-  queryId: "sourcetruce-read-route-test",
-  queryIds: ["sourcetruce-read-route-test"],
+  queryId: "alethia-read-route-test",
+  queryIds: ["alethia-read-route-test"],
   readEpoch: 1236,
   bookmark: "sgk:test:1236",
   latencyMs: 2.5,

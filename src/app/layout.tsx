@@ -3,7 +3,7 @@ import "./globals.css";
 
 
 export const metadata: Metadata = {
-  title: "SourceTruce — Enterprise evidence court",
+  title: "Alethia — Enterprise evidence court",
   description:
     "A provenance- and coverage-aware enterprise ontology built on HydraDB.",
 };

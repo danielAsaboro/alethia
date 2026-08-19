@@ -28,7 +28,7 @@ describe("buildCausalArms", () => {
       "random_matched_removal",
       "superseded_evidence_removal",
       "current_evidence_pinning",
-      "full_sourcetruce_grounding",
+      "full_alethia_grounding",
       "prompt_only_conflict_reconciliation",
       "no_hydra",
       "no_identity_resolution",
@@ -67,7 +67,7 @@ describe("buildCausalArms", () => {
     };
 
     const full = buildCausalArms(unknownLifecycleInput, "seed-1")
-      .find((arm) => arm.id === "full_sourcetruce_grounding")!;
+      .find((arm) => arm.id === "full_alethia_grounding")!;
 
     expect(full.documents.map((document) => document.id)).toEqual(["current", "retired"]);
     expect(full.removedDocumentIds).toEqual([]);
@@ -77,7 +77,7 @@ describe("buildCausalArms", () => {
   it("enables conflict reconciliation only where the arm contract requires it", () => {
     const arms = new Map(buildCausalArms(input, "seed-1").map((arm) => [arm.id, arm]));
 
-    expect(arms.get("full_sourcetruce_grounding")?.promptMetadata.reconcileConflicts).toBe(true);
+    expect(arms.get("full_alethia_grounding")?.promptMetadata.reconcileConflicts).toBe(true);
     expect(arms.get("prompt_only_conflict_reconciliation")?.promptMetadata.reconcileConflicts).toBe(true);
     expect(arms.get("no_conflict_policy")?.promptMetadata.reconcileConflicts).toBe(false);
     expect(arms.get("no_identity_resolution")?.promptMetadata).toEqual({

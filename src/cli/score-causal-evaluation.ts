@@ -79,7 +79,7 @@ async function main() {
   if (args.judgmentsFrom) {
     const cacheBytes = await readFile(path.resolve(args.judgmentsFrom));
     const cacheArtifact = JSON.parse(cacheBytes.toString("utf8")) as { judge?: { model?: unknown }; judgments?: Array<Record<string, unknown>>; judgeFailures?: Array<Record<string, unknown>> };
-    if (cacheArtifact.judge?.model !== "sourcetruce-extractor" || !Array.isArray(cacheArtifact.judgments) || !Array.isArray(cacheArtifact.judgeFailures)) throw new TypeError("Prior causal judgment cache is incompatible");
+    if (cacheArtifact.judge?.model !== "alethia-extractor" || !Array.isArray(cacheArtifact.judgments) || !Array.isArray(cacheArtifact.judgeFailures)) throw new TypeError("Prior causal judgment cache is incompatible");
     const validatedJudgments = [];
     for (const row of cacheArtifact.judgments) {
       if (typeof row.caseId !== "string" || typeof row.answer !== "string" || typeof row.correct !== "boolean" || typeof row.completeness !== "number" || typeof row.rawOutput !== "string" || typeof row.latencyMs !== "number") throw new TypeError("Prior causal judgment cache contains a malformed judgment");
@@ -132,7 +132,7 @@ async function main() {
   const artifact = {
     schemaVersion: 1, generatedAt: new Date().toISOString(), runtimeResultsSha256: digest(resultsBytes), labelsSha256: digest(labelsBytes),
     labelsOpenedAfterRuntime: true, scope: "19 promoted ERB conflict cases; labeled development causal evaluation, not unseen generalization evidence",
-    judge: { model: "sourcetruce-extractor", uniqueAnswers: uniqueAnswers.size, scored: judgments.length, reused: judgments.filter((row) => row.reused).length, fresh: judgments.filter((row) => !row.reused).length, failures: judgeFailures.length, reusedFailures: judgeFailures.filter((row) => row.reused).length, judgmentCacheSha256 },
+    judge: { model: "alethia-extractor", uniqueAnswers: uniqueAnswers.size, scored: judgments.length, reused: judgments.filter((row) => row.reused).length, fresh: judgments.filter((row) => !row.reused).length, failures: judgeFailures.length, reusedFailures: judgeFailures.filter((row) => row.reused).length, judgmentCacheSha256 },
     report, judgments, judgeFailures,
   };
   const output = path.resolve(args.output);

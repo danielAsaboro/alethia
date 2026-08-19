@@ -108,7 +108,7 @@ export function buildConflictEngineeringProof(input: {
     "random_matched_removal",
     "superseded_evidence_removal",
     "current_evidence_pinning",
-    "full_sourcetruce_grounding",
+    "full_alethia_grounding",
     "prompt_only_conflict_reconciliation",
     "no_hydra",
     "no_identity_resolution",
@@ -120,7 +120,7 @@ export function buildConflictEngineeringProof(input: {
     .map((armId) => ({ armId, ...input.scoredArms[armId]! }));
   const cut = input.scoredArms.superseded_evidence_removal;
   const pin = input.scoredArms.current_evidence_pinning;
-  const full = input.scoredArms.full_sourcetruce_grounding;
+  const full = input.scoredArms.full_alethia_grounding;
   if (!cut || !pin || !full) throw new TypeError("Cut-versus-pin proof requires cut, pin, and full arms");
 
   const cases = new Set(input.runtimeRows.map((row) => row.caseId));

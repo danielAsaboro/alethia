@@ -2,7 +2,7 @@
   "cacheDirectory": ".local/qvac",
   "serve": {
     "models": {
-      "sourcetruce-extractor": {
+      "alethia-extractor": {
         "src": ".local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf",
         "type": "llamacpp-completion",
         "default": true,

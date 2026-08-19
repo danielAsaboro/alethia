@@ -52,7 +52,7 @@ describe("runErbConflictEvaluation", () => {
       manifest,
       extraction: {
         schemaVersion: 1,
-        runtime: { model: "sourcetruce-extractor", promptVersion: "conflict-observation-v7" },
+        runtime: { model: "alethia-extractor", promptVersion: "conflict-observation-v7" },
         cases: [{
           questionId: "qst_0411",
           question: "Current value?",
@@ -84,7 +84,7 @@ describe("runErbConflictEvaluation", () => {
           decision: { correct: true, completeness: 1, satisfiedFactIndexes: [0], reason: "complete" },
           rawOutput: "raw",
           latencyMs: 3,
-          model: "sourcetruce-extractor",
+          model: "alethia-extractor",
           promptVersion: "erb-answer-evaluation-v1",
         }),
       },

@@ -13,7 +13,7 @@ describe("hydraQueryId", () => {
 
     expect(first).toBe(retry);
     expect(first).not.toBe(different);
-    expect(first).toMatch(/^sourcetruce-[a-f0-9]{32}$/);
+    expect(first).toMatch(/^alethia-[a-f0-9]{32}$/);
   });
 
   it("uses unique execution ids for reads but stable payload ids for mutations", () => {

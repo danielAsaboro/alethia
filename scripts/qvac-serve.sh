@@ -15,4 +15,4 @@ exec "$project_root/node_modules/.bin/qvac" serve openai \
   --config "$runtime_config" \
   --port 11436 \
   --host 127.0.0.1 \
-  --model sourcetruce-extractor
+  --model alethia-extractor

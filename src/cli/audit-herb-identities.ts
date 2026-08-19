@@ -113,7 +113,7 @@ async function main(): Promise<void> {
         acceptedExactLinks: accepted.length,
         sameNameCandidates: fuzzyCandidates.length,
         hardNegativePairs: hardNegatives.length,
-        sourceTruceFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
+        alethiaFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
       },
       audit: {
         labelsSha256: createHash("sha256").update(labelBytes).digest("hex"),
@@ -125,7 +125,7 @@ async function main(): Promise<void> {
       ablations: {
         exactOnly: { mergedPairs: accepted.length },
         naiveFuzzyName: { mergedPairs: fuzzyCandidates.length, knownHardConstraintViolations: fuzzyCandidates.filter((decision) => decision.constraints.includes("employee_id_conflict")).length },
-        sourceTruce: { mergedPairs: accepted.length, blockedHardNegatives: hardNegatives.length },
+        alethia: { mergedPairs: accepted.length, blockedHardNegatives: hardNegatives.length },
       },
       examples: {
         accepted: { decision: positive, sources: describePair(positive.candidateSourceObjectIds), hydraPath: positivePath },

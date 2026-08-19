@@ -258,7 +258,7 @@ const execFileAsync = promisify(execFile);
 
 export async function restartHydraContainer(
   readinessRepository: Pick<OutageRepository, "entityExists">,
-  container = process.env.HYDRA_CONTAINER_NAME ?? "sourcetruce-hydradb",
+  container = process.env.HYDRA_CONTAINER_NAME ?? "alethia-hydradb",
 ) {
   const inspected = await execFileAsync("docker", ["inspect", "--format", "{{.Id}}", container]);
   const containerId = inspected.stdout.trim();
@@ -314,7 +314,7 @@ async function main() {
       runCases: (candidate) =>
         runFirstPrizeCases(candidate as unknown as CaseRepository),
       qvacOutageProbe: () => probeQvacExtractionOutage(
-        new QvacClient("http://127.0.0.1:1/v1", "sourcetruce-extractor"),
+        new QvacClient("http://127.0.0.1:1/v1", "alethia-extractor"),
         canonicalQvacProbeSource,
       ),
       restartHydra: () => restartHydraContainer(repository),

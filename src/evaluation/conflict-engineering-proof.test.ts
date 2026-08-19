@@ -71,7 +71,7 @@ describe("source-only conflict engineering proof", () => {
         plain_retrieval: { answerCorrectness: 0.2, currentValueSurfaced: 2, unsupportedAnswerRate: 0, retiredValuePresentedAsCurrent: 1 },
         superseded_evidence_removal: { answerCorrectness: 0.5, currentValueSurfaced: 5, unsupportedAnswerRate: 0, retiredValuePresentedAsCurrent: 0 },
         current_evidence_pinning: { answerCorrectness: 0.4, currentValueSurfaced: 4, unsupportedAnswerRate: 0, retiredValuePresentedAsCurrent: 0 },
-        full_sourcetruce_grounding: { answerCorrectness: 0.5, currentValueSurfaced: 5, unsupportedAnswerRate: 0, retiredValuePresentedAsCurrent: 0 },
+        full_alethia_grounding: { answerCorrectness: 0.5, currentValueSurfaced: 5, unsupportedAnswerRate: 0, retiredValuePresentedAsCurrent: 0 },
       },
       runtimeRows: [
         { caseId: "c1", armId: "plain_retrieval", contextDocumentIds: ["old", "new"], removedDocumentIds: [], replacementDocumentIds: [], hydraQueryCount: 0 },
@@ -88,7 +88,7 @@ describe("source-only conflict engineering proof", () => {
       "plain_retrieval",
       "superseded_evidence_removal",
       "current_evidence_pinning",
-      "full_sourcetruce_grounding",
+      "full_alethia_grounding",
     ]);
     expect(proof.cutVersusPin).toEqual({
       cut: { answerCorrectness: 0.5, currentValueSurfaced: 5 },

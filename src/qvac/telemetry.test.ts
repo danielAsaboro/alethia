@@ -5,7 +5,7 @@ import { parseQvacTelemetry, recordGroundingValidation } from "./telemetry";
 describe("QVAC telemetry", () => {
   it("distinguishes configured profile from observed GPU/offload telemetry", () => {
     expect(parseQvacTelemetry({
-      log: 'Model "sourcetruce-extractor" loaded\ncompletion done tokens=35 ttft=891 tps=4.3 prompt=1352 cache=1447 gen=35 backend=gpu offloaded_layers=99',
+      log: 'Model "alethia-extractor" loaded\ncompletion done tokens=35 ttft=891 tps=4.3 prompt=1352 cache=1447 gen=35 backend=gpu offloaded_layers=99',
       config: { ctx_size: 16384, gpu_layers: 99 },
     })).toMatchObject({ backend: "gpu", contextSize: 16384, layersRequested: 99, layersOffloaded: 99, requests: [{ timeToFirstTokenMs: 891, tokensPerSecond: 4.3 }] });
   });

@@ -11,7 +11,7 @@ import { runIngestion } from "./run-ingestion";
 
 describe("buildIngestionRunLedger", () => {
   it("accounts for every raw record and produces stable replay identifiers", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-ledger-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "alethia-ledger-"));
     const input = path.join(directory, "records.jsonl");
     const valid = { doc_id: "dsid_abc123", source_type: "slack", title: "Title", content: "Canonical body" };
     await writeFile(input, `${JSON.stringify(valid)}\n${JSON.stringify(valid)}\n{"doc_id":"bad"}\n`, "utf8");

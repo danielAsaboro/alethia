@@ -50,7 +50,7 @@ async function main() {
       acceptedExactLinks: accepted.length,
       sameNameCandidates: sameName.length,
       hardNegativePairs: hardNegative.length,
-      sourceTruceFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
+      alethiaFalseMerges: accepted.filter((decision) => decision.constraints.includes("employee_id_conflict")).length,
       graphNodes: graph.nodes.length,
       graphEdges: graph.edges.length,
     };
@@ -68,7 +68,7 @@ async function main() {
     const markdown = output.replace(/\.json$/i, ".md");
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    await writeFile(markdown, `# SourceTruce generic judge-case evaluation\n\n- Runtime SHA-256: \`${frozen.sha256}\`\n- Attempted: ${score.counts.attempted}\n- Completed: ${score.counts.completed}\n- Rejected: ${score.counts.rejected}\n- Failed: ${score.counts.failed}\n- Unscored: ${score.counts.unscored}\n- Answer correctness / completeness: ${(score.answerCorrectness * 100).toFixed(1)}% / ${(score.answerCompleteness * 100).toFixed(1)}%\n- Verdict accuracy: ${(score.verdictAccuracy * 100).toFixed(1)}%\n- Evidence precision / recall / F1: ${score.evidence.precision ?? "undefined"} / ${score.evidence.recall ?? "undefined"} / ${score.evidence.f1 ?? "undefined"}\n- Live Hydra latency p50 / p95: ${score.latency.p50Ms} ms / ${score.latency.p95Ms} ms\n- Identity hard negatives observed: ${identityLane.hardNegativePairs}\n- Identity false merges on known hard constraints: ${identityLane.sourceTruceFalseMerges}\n- Graph: ${identityLane.graphNodes} nodes / ${identityLane.graphEdges} edges\n\nThis is a labeled development-case evaluation. It is not an untouched holdout result.\n`, "utf8");
+    await writeFile(markdown, `# Alethia generic judge-case evaluation\n\n- Runtime SHA-256: \`${frozen.sha256}\`\n- Attempted: ${score.counts.attempted}\n- Completed: ${score.counts.completed}\n- Rejected: ${score.counts.rejected}\n- Failed: ${score.counts.failed}\n- Unscored: ${score.counts.unscored}\n- Answer correctness / completeness: ${(score.answerCorrectness * 100).toFixed(1)}% / ${(score.answerCompleteness * 100).toFixed(1)}%\n- Verdict accuracy: ${(score.verdictAccuracy * 100).toFixed(1)}%\n- Evidence precision / recall / F1: ${score.evidence.precision ?? "undefined"} / ${score.evidence.recall ?? "undefined"} / ${score.evidence.f1 ?? "undefined"}\n- Live Hydra latency p50 / p95: ${score.latency.p50Ms} ms / ${score.latency.p95Ms} ms\n- Identity hard negatives observed: ${identityLane.hardNegativePairs}\n- Identity false merges on known hard constraints: ${identityLane.alethiaFalseMerges}\n- Graph: ${identityLane.graphNodes} nodes / ${identityLane.graphEdges} edges\n\nThis is a labeled development-case evaluation. It is not an untouched holdout result.\n`, "utf8");
     console.log(JSON.stringify({ output, markdown, attempted: score.counts.attempted, completed: score.counts.completed, answerCorrectness: score.answerCorrectness }));
     if (score.counts.failed > 0 || score.counts.rejected > 0 || score.counts.unscored > 0) process.exitCode = 1;
   } finally { await hydra.close(); }

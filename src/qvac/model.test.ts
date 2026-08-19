@@ -11,8 +11,8 @@ import {
 
 describe("qvacRuntimeModel", () => {
   it("identifies the pinned QVAC Qwen3.8 27B GGUF runtime behind the default alias", () => {
-    expect(qvacRuntimeModel("sourcetruce-extractor")).toEqual({
-      alias: "sourcetruce-extractor",
+    expect(qvacRuntimeModel("alethia-extractor")).toEqual({
+      alias: "alethia-extractor",
       modelSource: ".local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf",
       downloadUrl: "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/27af057ecb382ddfea5d12837360a8980560e3ed/Qwen3.8-27B-UD-Q4_K_XL.gguf",
       modelSha256: "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e",

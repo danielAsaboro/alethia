@@ -11,7 +11,7 @@ describe("scoreCausalResults", () => {
         modelInputTokens: 101,
         response: { answer: "old", verdict: "SUPPORTED", evidenceDocumentIds: ["old-doc", "extra"] },
       }, {
-        caseId: "q1", armId: "full_sourcetruce_grounding", status: "completed", latencyMs: 8,
+        caseId: "q1", armId: "full_alethia_grounding", status: "completed", latencyMs: 8,
         contextDocumentCount: 2, contextTokenBudget: 10, hydraQueryCount: 2,
         modelInputTokens: 103,
         response: { answer: "new", verdict: "SUPPORTED", evidenceDocumentIds: ["new-doc"] },
@@ -26,7 +26,7 @@ describe("scoreCausalResults", () => {
       invalidExtraEvidence: 2, unsupportedAnswerRate: 1, incorrectAbstentions: 0,
       retiredValuePresentedAsCurrent: 1, hydraQueryCount: 0,
     });
-    expect(report.arms.full_sourcetruce_grounding).toMatchObject({
+    expect(report.arms.full_alethia_grounding).toMatchObject({
       attempts: 1, answerCorrectness: 1, evidencePrecision: 1, evidenceRecall: 1,
       invalidExtraEvidence: 0, unsupportedAnswerRate: 0, currentValueSurfaced: 1,
       hydraQueryCount: 2,

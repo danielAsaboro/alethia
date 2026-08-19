@@ -10,7 +10,7 @@ const outputPath = path.resolve(
   process.env.QVAC_RUNTIME_CONFIG_OUTPUT ??
     path.join(projectRoot, ".local", "qvac.runtime.config.json"),
 );
-const alias = "sourcetruce-extractor";
+const alias = "alethia-extractor";
 
 const config = JSON.parse(await readFile(sourcePath, "utf8"));
 const model = config?.serve?.models?.[alias];

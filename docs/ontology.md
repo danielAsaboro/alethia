@@ -1,6 +1,6 @@
 # Ontology reference
 
-SourceTruce stores evidence, decisions, and uncertainty as graph structure. Logical IDs are deterministic SHA-256 projections; HydraDB receives stable integer IDs derived from those logical IDs.
+Alethia stores evidence, decisions, and uncertainty as graph structure. Logical IDs are deterministic SHA-256 projections; HydraDB receives stable integer IDs derived from those logical IDs.
 
 ## Node labels
 
@@ -54,7 +54,7 @@ MATCH (variant:SourceObject)-[r:VERSION_OF]->(anchor:SourceObject)
 RETURN variant, r, anchor
 ```
 
-The real ERB conflict acquisition contains one Jira native ID with two divergent payloads. SourceTruce preserves both and writes one `VERSION_OF` edge. Because the acquisition has no reliable version timestamps, the edge uses a deterministic digest anchor and stores `orderKnown=false`; it does not manufacture a “latest” document.
+The real ERB conflict acquisition contains one Jira native ID with two divergent payloads. Alethia preserves both and writes one `VERSION_OF` edge. Because the acquisition has no reliable version timestamps, the edge uses a deterministic digest anchor and stores `orderKnown=false`; it does not manufacture a “latest” document.
 
 ## Conflict evidence path
 

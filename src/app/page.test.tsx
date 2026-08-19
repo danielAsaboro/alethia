@@ -5,11 +5,11 @@ import { listJudgeCases } from "@/cases/case-registry";
 import { EvidenceWorkspace } from "./components/evidence-workspace";
 import Home from "./page";
 
-describe("SourceTruce evidence court", () => {
+describe("Alethia evidence court", () => {
   it("renders all eleven one-click cases without ontology implementation inputs", () => {
     const html = renderToStaticMarkup(<Home />);
 
-    expect(html).toContain("SourceTruce");
+    expect(html).toContain("Alethia");
     expect(html).toContain("Enterprise evidence court");
     expect(html).toContain("Resolve a conflict");
     expect(html).toContain("Prove a supersession");
@@ -50,7 +50,7 @@ describe("SourceTruce evidence court", () => {
           graphProof: {
             operation: "algo.SPpaths",
             consistency: "strong",
-            queryId: "sourcetruce-read-test",
+            queryId: "alethia-read-test",
             readEpoch: 1236,
             bookmark: "sgk:test:1236",
             latencyMs: 3.25,
@@ -68,7 +68,7 @@ describe("SourceTruce evidence court", () => {
     expect(html).toContain("algo.SPpaths");
     expect(html).toContain("strong consistency");
     expect(visibleText).toContain("1 round trip");
-    expect(html).toContain("sourcetruce-read-test");
+    expect(html).toContain("alethia-read-test");
     expect(html).toContain("claim_30 → source_policy");
   });
 
@@ -77,7 +77,7 @@ describe("SourceTruce evidence court", () => {
     const proof = {
       operation: "algo.SPpaths" as const,
       consistency: "strong" as const,
-      queryId: "sourcetruce-read-state-test",
+      queryId: "alethia-read-state-test",
       readEpoch: 42,
       bookmark: "sgk:state:42",
       latencyMs: 2,

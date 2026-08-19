@@ -27,14 +27,14 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topbar">
-        <a className="brand" href="#top"><span className="brand-mark">ST</span><span>SourceTruce</span></a>
+        <a className="brand" href="#top"><span className="brand-mark">A</span><span>Alethia</span></a>
         <div className="system-state"><span className="pulse" />HydraDB judge path · local QVAC extraction</div>
       </header>
       <section className="hero court-hero" id="top">
         <div>
           <p className="eyebrow">Enterprise evidence court</p>
           <h1>Every answer should survive cross-examination.</h1>
-          <p className="lede">SourceTruce turns noisy enterprise records into inspectable claims, identity decisions, ontology mappings, conflicts, and knowledge boundaries. Pick a real case. The verdict must come back through HydraDB.</p>
+          <p className="lede">Alethia turns noisy enterprise records into inspectable claims, identity decisions, ontology mappings, conflicts, and knowledge boundaries. Pick a real case. The verdict must come back through HydraDB.</p>
         </div>
         <div className="proof-card">
           <p className="proof-label">Verified real-data system</p>

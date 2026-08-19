@@ -8,7 +8,7 @@ import {
 import type { CausalArm } from "./causal-arms";
 
 const arm: CausalArm = {
-  id: "full_sourcetruce_grounding",
+  id: "full_alethia_grounding",
   caseId: "case-1",
   question: "What is current?",
   documents: [{ id: "doc-1", sourceSystem: "drive", text: "The applied limit is 30%.", tokenCount: 6, lifecycle: "current" }],

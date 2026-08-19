@@ -1,12 +1,12 @@
-# SourceTruce
+# Alethia
 
-SourceTruce is an enterprise evidence court for Hack Hydra Track 01. It turns contradictory records into a claim-level ontology in HydraDB, records why identities and source fields do—or do not—align, and issues one of four verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
+Alethia is an enterprise evidence court for Hack Hydra Track 01. It turns contradictory records into a claim-level ontology in HydraDB, records why identities and source fields do—or do not—align, and issues one of four verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
 
 The one-click demo uses real [Enterprise RAG Bench](https://github.com/onyx-dot-app/EnterpriseRAG-Bench) and [Salesforce HERB](https://huggingface.co/datasets/Salesforce/HERB) records. Enterprise text stays local: QVAC is called through its official Vercel AI SDK provider on loopback. QVAC proposes grounded observations; deterministic policy and HydraDB paths decide the result.
 
 ## What makes it different
 
-Conventional RAG retrieves passages and asks a model to reconcile them inside a prompt. SourceTruce makes the reconciliation inspectable graph data:
+Conventional RAG retrieves passages and asks a model to reconcile them inside a prompt. Alethia makes the reconciliation inspectable graph data:
 
 - multiple extraction observations consolidate into one semantic claim without duplicating the answer;
 - divergent payloads sharing one source-qualified native ID remain separate objects connected by explicit `VERSION_OF` lineage; unknown chronology is never guessed;
@@ -78,7 +78,7 @@ npm run hydra:up
 
 Fetch the pinned [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) `UD-Q4_K_XL` GGUF from [Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF). The fetch command resumes partial downloads and verifies the expected 17,559,178,144-byte file against SHA-256 `3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e` before QVAC can load it.
 
-Start QVAC in a normal macOS Terminal session, not in Codex's terminal or from any process launched by Codex. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `sourcetruce-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
+Start QVAC in a normal macOS Terminal session, not in Codex's terminal or from any process launched by Codex. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `alethia-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
 
 ```bash
 npm run qvac:doctor
@@ -196,7 +196,7 @@ npm run dev
 | `HYDRA_NAMESPACE` | `default` | Graph namespace |
 | `HYDRA_CELL_ID` | `cell-0` | HydraDB cell |
 | `QVAC_BASE_URL` | `http://127.0.0.1:11436/v1` | Local OpenAI-compatible QVAC endpoint |
-| `QVAC_MODEL` | `sourcetruce-extractor` | QVAC alias backed by the verified local Qwen3.8 27B GGUF |
+| `QVAC_MODEL` | `alethia-extractor` | QVAC alias backed by the verified local Qwen3.8 27B GGUF |
 | `QVAC_REQUEST_TIMEOUT_MS` | `120000` | Per-request timeout; bounded from 1,000 through 1,800,000 ms for long-context verification |
 
 HydraDB is pinned by image digest in `docker-compose.yml`. Compose binds HydraDB ports to loopback only.
@@ -256,11 +256,11 @@ git diff --check
 Corpora, benchmark labels, local model files, saved evidence, and screenshots are deliberately excluded from this public repository.
 
 - Enterprise RAG Bench is MIT-licensed.
-- Salesforce HERB is CC BY-NC 4.0 and its dataset card states research-use limitations. SourceTruce does not imply unrestricted commercial use.
+- Salesforce HERB is CC BY-NC 4.0 and its dataset card states research-use limitations. Alethia does not imply unrestricted commercial use.
 - HydraDB and QVAC retain their own licenses and terms.
 
 See [ATTRIBUTION.md](ATTRIBUTION.md) for dependency and dataset links.
 
 ## License
 
-SourceTruce is licensed under the [MIT License](LICENSE).
+Alethia is licensed under the [MIT License](LICENSE).

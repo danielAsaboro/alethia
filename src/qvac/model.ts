@@ -1,4 +1,4 @@
-export const QVAC_MODEL_ALIAS = "sourcetruce-extractor";
+export const QVAC_MODEL_ALIAS = "alethia-extractor";
 export const QVAC_MODEL_SOURCE = ".local/models/Qwen3.8-27B-UD-Q4_K_XL.gguf";
 export const QVAC_MODEL_DOWNLOAD_URL =
   "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/27af057ecb382ddfea5d12837360a8980560e3ed/Qwen3.8-27B-UD-Q4_K_XL.gguf";

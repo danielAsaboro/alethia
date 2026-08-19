@@ -164,7 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         import duckdb
     except ImportError as error:
         raise RuntimeError("duckdb is required; install requirements-data.txt") from error
-    extension_directory = __import__("os").environ.get("SOURCETRUCE_DUCKDB_EXTENSION_DIRECTORY")
+    extension_directory = __import__("os").environ.get("ALETHIA_DUCKDB_EXTENSION_DIRECTORY")
     config = {"extension_directory": extension_directory} if extension_directory else {}
     connection = duckdb.connect(str(args.database), read_only=True, config=config)
     connection.execute("INSTALL fts")

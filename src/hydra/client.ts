@@ -342,7 +342,7 @@ export function hydraQueryId(
     .update(JSON.stringify({ cypher, parameters }))
     .digest("hex")
     .slice(0, 32);
-  return `sourcetruce-${digest}`;
+  return `alethia-${digest}`;
 }
 
 export function hydraRequestQueryId(
@@ -351,7 +351,7 @@ export function hydraRequestQueryId(
 ): string {
   return /^\s*UNWIND\b/i.test(cypher) && /\b(?:MERGE|CREATE|SET|DELETE|REMOVE)\b/i.test(cypher)
     ? hydraQueryId(cypher, parameters)
-    : `sourcetruce-read-${randomUUID()}`;
+    : `alethia-read-${randomUUID()}`;
 }
 
 export class HydraRepository {

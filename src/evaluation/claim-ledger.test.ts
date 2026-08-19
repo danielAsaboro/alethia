@@ -13,7 +13,7 @@ describe("verifyClaim", () => {
       id: "missing",
       claim: "attempted cases",
       value: 11,
-      artifact: "/definitely/missing/source-truce-evidence.json",
+      artifact: "/definitely/missing/alethia-evidence.json",
       jsonPointer: "/score/attempted",
       command: "npm test",
       commit: "abc1234",
@@ -23,7 +23,7 @@ describe("verifyClaim", () => {
   });
 
   it("rejects a stale or mismatched JSON pointer value", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-claim-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "alethia-claim-"));
     const artifact = path.join(directory, "score.json");
     await writeFile(artifact, JSON.stringify({ score: { attempted: 4 } }));
     await expect(verifyClaim({
@@ -40,7 +40,7 @@ describe("verifyClaim", () => {
   });
 
   it("returns the verified artifact digest for an exact value", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "sourcetruce-claim-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "alethia-claim-"));
     const artifact = path.join(directory, "score.json");
     await writeFile(artifact, JSON.stringify({ scope: { systems: ["a", "b"] } }));
     await expect(verifyClaim({

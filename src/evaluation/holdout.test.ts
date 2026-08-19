@@ -41,7 +41,7 @@ function freeze() {
     extractionPromptVersion: "grounded-answer-v1",
     retrievalConfigDigest: "c".repeat(64),
     policyVersions: ["coverage-v1", "conflict-v1"],
-    model: { alias: "sourcetruce-extractor", sha256: "d".repeat(64), contextSize: 16384 },
+    model: { alias: "alethia-extractor", sha256: "d".repeat(64), contextSize: 16384 },
   });
 }
 

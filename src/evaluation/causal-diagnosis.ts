@@ -75,7 +75,7 @@ export function diagnoseCausalRun(input: {
       throw new TypeError(`Causal diagnosis requires complete 10-arm accounting for ${causalCase.caseId}`);
     }
     const byArm = new Map(rows.map((row) => [row.armId, row]));
-    const full = byArm.get("full_sourcetruce_grounding")!;
+    const full = byArm.get("full_alethia_grounding")!;
     const categories = new Set<CausalLossCategory>();
     const observations: string[] = [];
     const retrieval = new Set(causalCase.retrievalDocumentIds);
