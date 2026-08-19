@@ -42,11 +42,11 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--cobalt); outlin
 .button-dark { background: var(--carbon); border-color: var(--carbon); box-shadow: 5px 5px 0 var(--white); color: var(--white); }
 
 .hero { border-bottom: 2px solid var(--carbon); display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(18rem, .65fr); min-height: calc(100vh - 5.25rem); }
-.hero-copy { align-items: flex-start; display: flex; flex-direction: column; justify-content: center; padding: clamp(3rem, 8vw, 8rem) clamp(1rem, 6vw, 7rem); }
+.hero-copy { align-items: flex-start; display: flex; flex-direction: column; justify-content: center; padding: clamp(2.5rem, 5vw, 5rem) clamp(1rem, 6vw, 7rem); }
 .hero-copy .kicker { background: var(--chartreuse); border: 2px solid var(--carbon); padding: .42rem .58rem; }
-.hero h1 { font-size: clamp(3.7rem, 8.7vw, 9.4rem); letter-spacing: -.075em; line-height: .78; margin: 1.25rem 0 2rem; max-width: 8.2ch; text-wrap: balance; }
+.hero h1 { font-size: clamp(3.7rem, 7vw, 7.4rem); letter-spacing: -.075em; line-height: .82; margin: 1.1rem 0 1.5rem; max-width: 11ch; text-wrap: balance; }
 .hero-intro { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.05rem, 1.6vw, 1.45rem); line-height: 1.45; margin: 0; max-width: 39rem; }
-.hero-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 2.4rem; }
+.hero-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1.8rem; }
 .text-link { border-bottom: 2px solid var(--carbon); color: var(--carbon); font-size: .75rem; font-weight: 900; padding: .6rem 0; text-decoration: none; text-transform: uppercase; }
 .text-link:hover { color: var(--cobalt); }
 .hero-docket { background: var(--cobalt); border-left: 2px solid var(--carbon); color: var(--white); display: flex; flex-direction: column; justify-content: flex-end; padding: clamp(2rem, 4vw, 4rem); }
