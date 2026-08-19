@@ -1,8 +1,46 @@
 # Alethia
 
-Alethia is an enterprise evidence court for Hack Hydra Track 01. It turns contradictory records into a claim-level ontology in HydraDB, records why identities and source fields do—or do not—align, and issues one of four verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
+**Make conflict explain itself.**
+
+Alethia is an enterprise evidence court built for **Hack Hydra Track 01: Enterprise Context and Ontology**. It turns contradictory records into a claim-level ontology in HydraDB, records why identities and source fields do—or do not—align, and returns one of four evidence-bound verdicts: `SUPPORTED`, `DISPUTED`, `NOT_FOUND`, or `UNKNOWN`.
 
 The one-click demo uses real [Enterprise RAG Bench](https://github.com/onyx-dot-app/EnterpriseRAG-Bench) and [Salesforce HERB](https://huggingface.co/datasets/Salesforce/HERB) records. Enterprise text stays local: QVAC is called through its official Vercel AI SDK provider on loopback. QVAC proposes grounded observations; deterministic policy and HydraDB paths decide the result.
+
+[Judge the product](#judge-path) · [See why HydraDB matters](#why-hydradb-is-essential) · [Reproduce locally](#reproduce-locally) · [Review measured results](#verified-results)
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Track** | 01 — Enterprise Context and Ontology |
+| **Problem** | Enterprise records disagree, identities collide, fields change meaning by source, and missing data is mistaken for proof of absence |
+| **Product** | A judge-facing web application that returns a verdict, controlling answer, exact evidence, counterfactual, coverage state, and HydraDB path |
+| **Graph core** | Canonical entities, immutable source objects, claims, observations, conflicts, authority policies, identity decisions, ontology mappings, and coverage slices |
+| **Real data** | Enterprise RAG Bench and Salesforce HERB |
+| **Stack** | Next.js, TypeScript, HydraDB OSS, QVAC, Vercel AI SDK, Docker Compose |
+| **Failure policy** | Fail closed: no HydraDB proof means no verdict |
+
+## Judge path
+
+Once the [real local stack is populated](#reproduce-locally), open `http://localhost:3000/workspace` and run these cases in order:
+
+1. **Resolve a conflict** — see two exact ERB quotes, the authority decision, the losing claim, and the native proof path.
+2. **Refuse an unsupported winner** — confirm that equally applied evidence produces `DISPUTED`, not an invented answer.
+3. **Admit incomplete coverage** — confirm that missing HERB coverage produces `UNKNOWN`.
+4. **Traverse a product team** — inspect a real multi-hop product → membership → employee → claim → source traversal.
+5. **Prove a fact is not found** — confirm that `NOT_FOUND` appears only when the relevant coverage slice is complete.
+
+For every completed run, inspect the operation, consistency mode, relationship sequence, returned path, query ID, read epoch, bookmark, round trips, and client latency. Stop HydraDB and retry: the API must return HTTP 503 instead of substituting cached or in-memory evidence.
+
+## Hackathon fit
+
+| Judging criterion | What Alethia demonstrates | Where to inspect |
+| --- | --- | --- |
+| **Technical execution** | Deterministic ingestion-to-answer flow, typed adapters, stable IDs, explicit errors, replay checks, and eleven live behaviors | [`src/ingestion`](src/ingestion), [`src/cases`](src/cases), [`src/app/workspace`](src/app/workspace) |
+| **HydraDB and graph-native use** | Native path algorithms over claims, observations, source objects, decisions, constraints, and coverage | [`src/hydra`](src/hydra), [ontology reference](docs/ontology.md) |
+| **Product completeness** | Judge-facing landing page and evidence workspace with idle, loading, empty, error, disputed, unknown, not-found, and supported states | [`src/app`](src/app) |
+| **Quality of results** | Development, frozen holdout, identity, alignment, safety, latency, resilience, and ablation results reported without hiding weak scores | [verified results](#verified-results) |
+| **Originality** | Reconciliation is durable graph data: losing claims, rejected mappings, hard identity blockers, and coverage boundaries remain inspectable | [what makes it different](#what-makes-it-different) |
 
 ## What makes it different
 
@@ -55,7 +93,21 @@ flowchart LR
 
 HydraDB stores the ontology and performs the decisive traversals. Removing it loses claim-to-observation provenance, competing claims, policy decisions, rejected mappings, identity blockers, and coverage boundaries. See [the ontology reference](docs/ontology.md).
 
-## How to run the evidence court
+## Why HydraDB is essential
+
+HydraDB is the system of record and the reasoning substrate—not a post-processing visualization. Ingestion writes the normalized ontology into HydraDB; the answer API then uses strong-consistency graph reads to assemble the verdict and its proof.
+
+| HydraDB operation | Product responsibility |
+| --- | --- |
+| `algo.SPpaths` | Return one material entity → claim → observation → source proof path |
+| `algo.SPpaths.sequence` | Enforce and expose a required relationship sequence for a judge case |
+| `algo.MSpaths` | Return multiple bounded paths for multi-evidence or multi-hop answers |
+| Strong-consistency read | Bind a verdict to a query ID, epoch, bookmark, latency, and round-trip count |
+| Graph writes | Persist source objects, observations, claims, conflicts, decisions, mappings, identities, constraints, and coverage |
+
+Without HydraDB, Alethia cannot prove which source observation produced a claim, retain contradictory and losing evidence, traverse rejected decisions, distinguish incomplete coverage from covered absence, or return a graph-native audit trail. The shipped API therefore fails closed when HydraDB is unavailable; it has no evidence-file or in-memory success fallback.
+
+## Reproduce locally
 
 ### Requirements
 
@@ -71,14 +123,14 @@ HydraDB stores the ontology and performs the decisive traversals. Removing it lo
 Install dependencies and start HydraDB:
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
 npm run hydra:up
 ```
 
 Fetch the pinned [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) `UD-Q4_K_XL` GGUF from [Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF). The fetch command resumes partial downloads and verifies the expected 17,559,178,144-byte file against SHA-256 `3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e` before QVAC can load it.
 
-Start QVAC in a normal macOS Terminal session, not in Codex's terminal or from any process launched by Codex. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `alethia-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
+Start QVAC in a normal interactive macOS shell. The server binds to `127.0.0.1:11436`, loads the verified local GGUF through QVAC's explicit `src` support, and exposes the stable `alethia-extractor` alias through `@qvac/ai-sdk-provider` and AI SDK 7. Thinking and tools are disabled because QVAC proposes quote-grounded observations rather than making adjudication decisions.
 
 ```bash
 npm run qvac:doctor
@@ -186,6 +238,20 @@ Start the app and open [http://localhost:3000](http://localhost:3000):
 npm run dev
 ```
 
+## Repository map
+
+| Path | Responsibility |
+| --- | --- |
+| [`src/ingestion`](src/ingestion) | Typed ERB and HERB adapters, normalization, and ingestion ledgers |
+| [`src/claims`](src/claims) | Grounded observations and semantic claim consolidation |
+| [`src/resolution`](src/resolution) | Identity candidates, signals, hard blockers, and resolution decisions |
+| [`src/alignment`](src/alignment) | Source-schema observations, canonical terms, and mapping decisions |
+| [`src/hydra`](src/hydra) | HydraDB graph mapping, writes, strong reads, and native path queries |
+| [`src/cases`](src/cases) | Eleven registered judge behaviors and answer assembly |
+| [`src/app`](src/app) | Alethia landing page, evidence workspace, and API routes |
+| [`evaluation`](evaluation) | Runtime manifests and frozen evaluation definitions—not downloaded corpora |
+| [`scripts`](scripts) | Acquisition, ingestion, evaluation, resilience, and verification commands |
+
 ## Configuration reference
 
 | Variable | Default | Purpose |
@@ -225,7 +291,7 @@ Fresh local evidence from August 20, 2026:
 | Hydra restart recovery | Pinned container restarted; persistent graph returned a strong-consistency native path in one round trip |
 | Local graph latency (M3 Pro) | 33 new-connection samples: 14.348 ms median / 253.733 ms p95; 33 reused-connection samples: 15.430 ms median / 262.887 ms p95 |
 | QVAC Metal profile | 3/3 accepted; 16,384 context; GPU observed; 66/66 model layers offloaded; 37,458-character boundary source grounded |
-| Ordinary test suite | Passed; the live Hydra integration suite is reported separately |
+| Test suite | 355 passed / 2 skipped with a 15-second real-corpus timeout; live Hydra integration is reported separately |
 
 The labeled conflict lane is development data after iterative engineering, not an unseen result. The separately frozen five-case holdout is intentionally reported even though it is weak; its `0.20` correctness is evidence about current generalization limits, not a score to hide. The later long-context profile proof demonstrates that the configured Metal runtime can ground a near-boundary fact; it does not retroactively rescore or replace the frozen holdout.
 
@@ -242,7 +308,7 @@ npm run evaluate:first-prize -- \
 ## How to verify the build
 
 ```bash
-npm test
+npx vitest run --testTimeout 15000
 HYDRA_INTEGRATION=1 npm test -- src/hydra/hydra.integration.test.ts
 npm run typecheck
 npm run lint
